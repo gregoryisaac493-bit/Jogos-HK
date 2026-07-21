@@ -1,0 +1,1837 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Circuito.Jogos</title>
+<style>
+  :root{
+    --bg:#0a1712;
+    --bg2:#0d1f16;
+    --panel:#0f231a;
+    --panel2:#122a1f;
+    --border:#1e3d2b;
+    --copper:#d99a5b;
+    --copper-bright:#f3c087;
+    --text:#eae7da;
+    --text-dim:#7fa08d;
+    --danger:#e0645c;
+    --win:#7be08a;
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);}
+  body{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+
+  .topbar{
+    display:flex;align-items:center;gap:14px;
+    padding:12px 18px;background:var(--panel);
+    border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  .brand{font-weight:700;font-size:16px;letter-spacing:2px;color:var(--copper-bright);white-space:nowrap;}
+  .brand span{color:var(--text-dim);font-weight:400;}
+  #gameName{
+    background:var(--bg2);border:1px solid var(--border);color:var(--text);
+    padding:8px 10px;border-radius:4px;font-family:inherit;font-size:13px;min-width:160px;flex:1;max-width:260px;
+  }
+  .actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
+  button{
+    font-family:inherit;font-size:12px;letter-spacing:.5px;text-transform:uppercase;
+    background:var(--panel2);color:var(--text);border:1px solid var(--border);
+    padding:9px 12px;border-radius:4px;cursor:pointer;transition:.15s;
+  }
+  button:hover{border-color:var(--copper);color:var(--copper-bright);}
+  button.primary{background:var(--copper);color:#1a1006;border-color:var(--copper);font-weight:700;}
+  button.primary:hover{background:var(--copper-bright);color:#1a1006;}
+  button.danger:hover{border-color:var(--danger);color:var(--danger);}
+
+  .workspace{flex:1;display:flex;overflow:hidden;}
+  .palette{
+    width:210px;background:var(--panel);border-right:1px solid var(--border);
+    padding:14px 10px;overflow-y:auto;flex-shrink:0;
+  }
+  .palette h4{
+    font-size:10px;letter-spacing:1.5px;margin:14px 0 6px 4px;
+    text-transform:uppercase;cursor:pointer;user-select:none;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .palette h4:first-child{margin-top:0;}
+  .palette h4 .cat-arrow{display:inline-block;transition:transform .15s;font-size:9px;}
+  .palette h4.collapsed .cat-arrow{transform:rotate(-90deg);}
+  .cat-blocks{overflow:hidden;}
+  .cat-blocks.collapsed{display:none;}
+  .cat-count{font-weight:400;opacity:.6;font-size:9px;}
+  .pnode{
+    display:block;width:100%;text-align:left;margin-bottom:6px;font-size:10.5px;
+    padding:8px 9px;border-left:3px solid #666;background:var(--panel2);
+    white-space:normal;line-height:1.3;
+  }
+  .hint{font-size:10.5px;color:var(--text-dim);line-height:1.5;margin-top:16px;padding:0 4px;}
+
+  .board-scroll{flex:1;overflow:auto;position:relative;
+    background-image: radial-gradient(circle, rgba(217,154,91,0.10) 1.2px, transparent 1.2px);
+    background-size:22px 22px; background-color:var(--bg2);
+  }
+  .board{position:relative;width:1600px;height:1100px;}
+  svg#wires{position:absolute;top:0;left:0;width:1600px;height:1100px;pointer-events:none;overflow:visible;}
+  .wire{fill:none;stroke:var(--copper);stroke-width:3;stroke-dasharray:7 7;
+    animation:flow .7s linear infinite;filter:drop-shadow(0 0 3px rgba(243,192,135,.55));
+    pointer-events:none;}
+  .wire.hover-del{stroke:var(--danger);}
+  #tempWire{fill:none;stroke:var(--copper-bright);stroke-width:2.5;stroke-dasharray:5 5;pointer-events:none;}
+  @keyframes flow{to{stroke-dashoffset:-28;}}
+
+  .node{
+    position:absolute;width:190px;background:var(--panel);border:1px solid var(--border);
+    border-radius:6px;box-shadow:0 3px 10px rgba(0,0,0,.4);user-select:none;
+  }
+  .node-head{
+    padding:9px 10px;font-size:10.5px;font-weight:700;letter-spacing:.3px;
+    border-bottom:1px solid var(--border);cursor:grab;display:flex;justify-content:space-between;align-items:center;gap:6px;
+    border-radius:6px 6px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    touch-action:none;
+  }
+  .node-del{background:none;border:none;color:inherit;opacity:.6;padding:0 2px;font-size:13px;cursor:pointer;flex-shrink:0;}
+  .node-del:hover{opacity:1;color:var(--danger);}
+  .node-body{padding:7px 10px;font-size:9px;color:var(--text-dim);letter-spacing:.5px;text-transform:uppercase;}
+  .port{
+    position:absolute;width:20px;height:20px;border-radius:50%;top:50%;margin-top:-10px;
+    border:2px solid var(--bg2);cursor:crosshair;touch-action:none;
+  }
+  .port-out{right:-10px;}
+  .port-in{left:-10px;}
+  .wire-hit{fill:none;stroke:transparent;stroke-width:22;pointer-events:auto;cursor:pointer;}
+
+  .modal{position:fixed;inset:0;background:rgba(4,10,7,.85);display:flex;align-items:center;justify-content:center;z-index:50;}
+  .modal.hidden{display:none;}
+  .modal-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    width:min(640px,92vw);max-height:82vh;overflow:auto;padding:20px;}
+  .modal-card h3{margin:0 0 4px;color:var(--copper-bright);letter-spacing:1px;font-size:15px;}
+  .modal-card .sub{color:var(--text-dim);font-size:11px;margin-bottom:16px;}
+  .close-x{float:right;background:none;border:none;color:var(--text-dim);font-size:16px;cursor:pointer;}
+  .gcard{
+    position:relative; border:1px solid var(--border); border-radius:4px 4px 40% 40%/4px 4px 18px 18px;
+    padding:16px 12px 12px; margin-bottom:14px; margin-top:14px;
+    display:flex;justify-content:space-between;align-items:center;background:var(--panel2);
+  }
+  .gcard::before{
+    content:"";position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+    width:0;height:0;border-left:60px solid transparent;border-right:60px solid transparent;
+    border-bottom:16px solid var(--copper);
+  }
+  .gcard .meta{font-size:11px;color:var(--text-dim);margin-top:3px;}
+  .gcard .gbtns{display:flex;gap:6px;}
+
+  #playOverlay .modal-card{width:auto;padding:16px;}
+  #gameCanvas{background:#0c1f16;border:1px solid var(--border);border-radius:6px;display:block;}
+  .play-hud{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12px;color:var(--text-dim);}
+  #scoreLabel{color:var(--win);font-weight:700;}
+  #endMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(4,10,7,.75);border-radius:6px;flex-direction:column;gap:10px;}
+  #endMsg.hidden{display:none;}
+  #endMsg .big{font-size:20px;font-weight:700;}
+  .canvas-wrap{position:relative;}
+  .storage-banner{
+    background:#3a2f12; border-bottom:1px solid var(--copper); color:var(--copper-bright);
+    font-size:11px; padding:8px 18px; display:flex; justify-content:space-between; align-items:center; gap:10px;
+  }
+  .storage-banner.hidden{display:none;}
+  .storage-banner button{padding:4px 8px;font-size:10px;}
+  .touch-controls{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-top:12px; padding:0 4px; user-select:none;
+  }
+  .dpad{
+    display:grid;
+    grid-template-areas:". up ." "left . right" ". down .";
+    grid-template-columns:44px 44px 44px; grid-template-rows:44px 44px 44px;
+    gap:3px;
+  }
+  .tbtn{
+    background:var(--panel2); border:1px solid var(--border); color:var(--copper-bright);
+    border-radius:8px; font-size:18px; touch-action:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .tbtn:active{background:var(--copper); color:#1a1006;}
+  .tbtn.action{
+    width:64px; height:64px; border-radius:50%; font-size:24px;
+    background:var(--copper); color:#1a1006; border:none;
+  }
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+    background:var(--copper);color:#1a1006;padding:10px 18px;border-radius:5px;font-size:12px;
+    font-weight:700;letter-spacing:.4px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:80;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">⚡ CIRCUITO<span>.JOGOS</span></div>
+    <input id="gameName" placeholder="nome do jogo">
+    <div class="actions">
+      <select id="exampleSelect" style="background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-family:inherit;font-size:12px;padding:9px 8px;cursor:pointer;">
+        <option value="">Exemplo ▾</option>
+        <option value="coins">🪙 Moedas</option>
+        <option value="racing">🏎️ Corrida</option>
+        <option value="clicker">👆 Clique</option>
+      </select>
+      <button id="btnClear" class="danger">Limpar</button>
+      <button id="btnExport">📤 Exportar</button>
+      <button id="btnImport">📥 Importar</button>
+      <button id="btnGallery">🏠 Casa dos Jogos</button>
+      <button id="btnSave">💾 Salvar</button>
+      <button id="btnPlay" class="primary">▶ Testar</button>
+    </div>
+  </div>
+  <div id="storageBanner" class="storage-banner hidden"></div>
+
+  <div class="workspace">
+    <aside class="palette" id="palette"></aside>
+    <div class="board-scroll">
+      <div class="board" id="board">
+        <svg id="wires"></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="galleryModal">
+    <div class="modal-card" style="background:linear-gradient(180deg,#12281c,var(--panel));">
+      <button class="close-x" data-close="galleryModal">✕</button>
+      <h3>🏠 CASA DOS JOGOS</h3>
+      <div class="sub" id="gallerySub">Jogos salvos por qualquer pessoa que use este circuito. Salvar aqui torna seu jogo visível para todos.</div>
+      <button id="btnDeleteAllMine" class="danger" style="margin-bottom:10px;">🗑️ Excluir Todos os Meus Jogos</button>
+      <div id="galleryList">Carregando...</div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="exportModal">
+    <div class="modal-card">
+      <button class="close-x" data-close="exportModal">✕</button>
+      <h3>EXPORTAR JOGO</h3>
+      <div class="sub">Copie este texto e guarde em qualquer lugar (bloco de notas, WhatsApp, etc). Funciona em qualquer aparelho, sem depender de internet ou conta.</div>
+      <textarea id="exportText" readonly style="width:100%;height:160px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-family:inherit;font-size:10px;padding:8px;"></textarea>
+      <div style="margin-top:10px;"><button id="btnCopyExport" class="primary">📋 Copiar</button></div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="importModal">
+    <div class="modal-card">
+      <button class="close-x" data-close="importModal">✕</button>
+      <h3>IMPORTAR JOGO</h3>
+      <div class="sub">Cole aqui o texto de um jogo exportado. Ele abre no editor e também fica guardado na sua Galeria.</div>
+      <textarea id="importText" placeholder="cole o texto exportado aqui..." style="width:100%;height:160px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;font-family:inherit;font-size:10px;padding:8px;"></textarea>
+      <div style="margin-top:10px;"><button id="btnDoImport" class="primary">Carregar no Editor</button></div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="playOverlay">
+    <div class="modal-card">
+      <button class="close-x" id="btnClosePlay">✕</button>
+      <div class="play-hud">
+        <span id="playTitle">TESTANDO JOGO</span>
+        <span>❤️ <span id="livesLabel">3</span> &nbsp; NÍVEL <span id="levelLabel">1</span> &nbsp; PONTOS: <span id="scoreLabel">0</span></span>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="gameCanvas" width="640" height="400"></canvas>
+        <div id="endMsg" class="hidden">
+          <div class="big" id="endText"></div>
+          <div id="endScore" style="color:var(--text-dim);font-size:12px;"></div>
+          <button id="btnPlayAgain" class="primary">Jogar de novo</button>
+        </div>
+      </div>
+      <div class="touch-controls">
+        <div class="dpad">
+          <button class="tbtn" id="tUp" style="grid-area:up;">↑</button>
+          <button class="tbtn" id="tLeft" style="grid-area:left;">←</button>
+          <button class="tbtn" id="tDown" style="grid-area:down;">↓</button>
+          <button class="tbtn" id="tRight" style="grid-area:right;">→</button>
+        </div>
+        <button class="tbtn action" id="tAction">⚡</button>
+      </div>
+      <div class="hint" id="playHint" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+const CATEGORY_ORDER = ['events','sensing','motion','looks','sound','control','variables','physics','logic'];
+const CATEGORY_LABELS = {
+  events:'Eventos', sensing:'Sensores', motion:'Movimento',
+  looks:'Aparência', sound:'Som', control:'Controle', variables:'Variáveis', physics:'Física', logic:'Lógica'
+};
+const CATEGORY_COLORS = {
+  events:'#f2c744', sensing:'#57c2d9', motion:'#4f8ef2',
+  looks:'#b07bf2', sound:'#e26bd0', control:'#f2a94e', variables:'#ff7f5c', physics:'#7ed957', logic:'#ffef5c'
+};
+
+const NODE_TYPES = {
+  start:      {kind:'trigger', category:'events',  label:'Quando o Jogo Começar'},
+  timer:      {kind:'trigger', category:'events',  label:'Temporizador ⏱', param:{key:'seconds', default:2, min:0.5, max:30, step:0.5, prefix:'a cada', unit:'s'}},
+  key_up:     {kind:'trigger', category:'events',  label:'Tecla ↑ Pressionada'},
+  key_down:   {kind:'trigger', category:'events',  label:'Tecla ↓ Pressionada'},
+  key_left:   {kind:'trigger', category:'events',  label:'Tecla ← Pressionada'},
+  key_right:  {kind:'trigger', category:'events',  label:'Tecla → Pressionada'},
+  key_space:  {kind:'trigger', category:'events',  label:'Tecla Espaço Pressionada'},
+  key_any:    {kind:'trigger', category:'events',  label:'Qualquer Tecla Pressionada'},
+  key_enter:  {kind:'trigger', category:'events',  label:'Tecla Enter Pressionada'},
+  key_escape: {kind:'trigger', category:'events',  label:'Tecla Esc Pressionada'},
+  key_shift:  {kind:'trigger', category:'events',  label:'Tecla Shift Pressionada'},
+  swipe_left: {kind:'trigger', category:'events',  label:'Deslizou ←'},
+  swipe_right:{kind:'trigger', category:'events',  label:'Deslizou →'},
+  swipe_up:   {kind:'trigger', category:'events',  label:'Deslizou ↑'},
+  swipe_down: {kind:'trigger', category:'events',  label:'Deslizou ↓'},
+  key_w:      {kind:'trigger', category:'events',  label:'Tecla W Pressionada'},
+  key_a:      {kind:'trigger', category:'events',  label:'Tecla A Pressionada'},
+  key_s:      {kind:'trigger', category:'events',  label:'Tecla S Pressionada'},
+  key_d:      {kind:'trigger', category:'events',  label:'Tecla D Pressionada'},
+  mouse_click:{kind:'trigger', category:'events',  label:'Clique / Toque na Tela'},
+  click_player:{kind:'trigger', category:'events', label:'Clicou no Personagem'},
+  double_tap: {kind:'trigger', category:'events',  label:'Toque Duplo'},
+  long_press: {kind:'trigger', category:'events',  label:'Pressionar e Segurar'},
+  always:     {kind:'trigger', category:'events',  label:'Sempre (Todo Quadro)'},
+  level_up:   {kind:'trigger', category:'events',  label:'Ao Mudar de Nível'},
+  on_pause:   {kind:'trigger', category:'events',  label:'Quando Pausar'},
+  on_resume:  {kind:'trigger', category:'events',  label:'Quando Continuar'},
+
+  hit_coin:   {kind:'trigger', category:'sensing', label:'Tocou na Moeda'},
+  hit_enemy:  {kind:'trigger', category:'sensing', label:'Tocou no Inimigo'},
+  hit_edge:   {kind:'trigger', category:'sensing', label:'Tocou na Borda'},
+  hit_edge_left:{kind:'trigger', category:'sensing', label:'Tocou na Borda Esquerda'},
+  hit_edge_right:{kind:'trigger', category:'sensing', label:'Tocou na Borda Direita'},
+  hit_edge_top:{kind:'trigger', category:'sensing', label:'Tocou na Borda de Cima'},
+  hit_edge_bottom:{kind:'trigger', category:'sensing', label:'Tocou na Borda de Baixo'},
+  hit_wall:   {kind:'trigger', category:'sensing', label:'Tocou numa Parede'},
+  hit_platform:{kind:'trigger', category:'sensing', label:'Tocou numa Plataforma'},
+  hit_powerup:{kind:'trigger', category:'sensing', label:'Tocou no Power-up'},
+  hit_obstacle:{kind:'trigger', category:'sensing', label:'Tocou num Obstáculo'},
+  hit_checkpoint:{kind:'trigger', category:'sensing', label:'Tocou num Checkpoint'},
+  enemy_defeated:{kind:'trigger', category:'sensing', label:'Inimigo Derrotado'},
+  health_zero:{kind:'trigger', category:'sensing', label:'Vida Chegou a Zero'},
+  hit_sprite: {kind:'trigger', category:'sensing', label:'Tocou num Sprite'},
+  near_enemy: {kind:'trigger', category:'sensing', label:'Perto de um Inimigo', param:{key:'value', default:60, min:20, max:300, step:10, prefix:'distância', unit:'px'}},
+  lives_low:  {kind:'trigger', category:'sensing', label:'Vidas Baixas (1)'},
+  countdown_end:{kind:'trigger', category:'sensing', label:'Contagem Regressiva Terminou'},
+  random_event:{kind:'trigger', category:'sensing', label:'Evento Aleatório (raro)'},
+  is_falling: {kind:'trigger', category:'sensing', label:'Está Caindo'},
+  no_enemies_left:{kind:'trigger', category:'sensing', label:'Sem Inimigos'},
+  no_coins_left:{kind:'trigger', category:'sensing', label:'Sem Moedas'},
+  score_reached:{kind:'trigger', category:'sensing', label:'Pontuação Atingiu', param:{key:'value', default:5, min:1, max:100, step:1, prefix:'≥', unit:''}},
+
+  move_up:    {kind:'action', category:'motion', label:'Mover ↑', param:{key:'amount', default:4, min:1, max:40, step:1, prefix:'quantidade', unit:'px'}},
+  move_down:  {kind:'action', category:'motion', label:'Mover ↓', param:{key:'amount', default:4, min:1, max:40, step:1, prefix:'quantidade', unit:'px'}},
+  move_left:  {kind:'action', category:'motion', label:'Mover ←', param:{key:'amount', default:4, min:1, max:40, step:1, prefix:'quantidade', unit:'px'}},
+  move_right: {kind:'action', category:'motion', label:'Mover →', param:{key:'amount', default:4, min:1, max:40, step:1, prefix:'quantidade', unit:'px'}},
+  random_pos: {kind:'action', category:'motion', label:'Ir Para Posição Aleatória'},
+  set_position:{kind:'action', category:'motion', label:'Definir Posição', params:[
+    {key:'x', default:300, min:0, max:600, step:10, prefix:'x', unit:''},
+    {key:'y', default:300, min:0, max:390, step:10, prefix:'y', unit:''},
+  ]},
+  move_to_click:{kind:'action', category:'motion', label:'Mover Para o Clique', param:{key:'value', default:3, min:1, max:15, step:1, prefix:'velocidade', unit:''}},
+  wrap_edges: {kind:'action', category:'motion', label:'Alternar Teletransporte nas Bordas'},
+  speed_boost:{kind:'action', category:'motion', label:'Impulso de Velocidade', param:{key:'seconds', default:3, min:1, max:10, step:1, prefix:'duração', unit:'s'}},
+  stop_moving:{kind:'action', category:'motion', label:'Parar de Mover'},
+  stop_horizontal:{kind:'action', category:'motion', label:'Parar Horizontal'},
+  stop_vertical:{kind:'action', category:'motion', label:'Parar Vertical'},
+  center_pos: {kind:'action', category:'motion', label:'Ir Para o Centro'},
+  face_left:  {kind:'action', category:'motion', label:'Virar Para Esquerda'},
+  face_right: {kind:'action', category:'motion', label:'Virar Para Direita'},
+  set_lanes: {kind:'action', category:'motion', label:'Definir Número de Pistas', param:{key:'value', default:3, min:2, max:6, step:1, prefix:'pistas', unit:''}},
+  lane_left: {kind:'action', category:'motion', label:'Mudar Pista ←'},
+  lane_right:{kind:'action', category:'motion', label:'Mudar Pista →'},
+  center_lane:{kind:'action', category:'motion', label:'Centralizar na Pista'},
+  move_toward_enemy:{kind:'action', category:'motion', label:'Mover Para o Inimigo Mais Próximo', param:{key:'value', default:3, min:1, max:10, step:1, prefix:'velocidade', unit:''}},
+  move_away_enemy:{kind:'action', category:'motion', label:'Fugir do Inimigo Mais Próximo', param:{key:'value', default:3, min:1, max:10, step:1, prefix:'velocidade', unit:''}},
+  flip_vertical:{kind:'action', category:'motion', label:'Alternar Cabeça Para Baixo'},
+  snap_to_grid:{kind:'action', category:'motion', label:'Encaixar na Grade', param:{key:'value', default:20, min:5, max:80, step:5, prefix:'tamanho', unit:'px'}},
+  mirror_position:{kind:'action', category:'motion', label:'Espelhar Posição Horizontal'},
+
+  change_color:{kind:'action', category:'looks', label:'Mudar de Cor'},
+  custom_color:{kind:'action', category:'looks', label:'Escolher Cor', param:{key:'color', type:'color', default:'#4fd8d1'}},
+  grow:        {kind:'action', category:'looks', label:'Aumentar Tamanho', param:{key:'value', default:6, min:2, max:30, step:1, prefix:'quantidade', unit:'px'}},
+  shrink:      {kind:'action', category:'looks', label:'Diminuir Tamanho', param:{key:'value', default:6, min:2, max:30, step:1, prefix:'quantidade', unit:'px'}},
+  set_size:    {kind:'action', category:'looks', label:'Definir Tamanho', param:{key:'value', default:24, min:8, max:80, step:2, prefix:'tamanho', unit:'px'}},
+  rotate:      {kind:'action', category:'looks', label:'Girar', param:{key:'value', default:15, min:1, max:180, step:1, prefix:'graus', unit:'°'}},
+  hide_p:      {kind:'action', category:'looks', label:'Esconder'},
+  show_p:      {kind:'action', category:'looks', label:'Mostrar'},
+  flash:       {kind:'action', category:'looks', label:'Piscar', param:{key:'value', default:10, min:2, max:60, step:2, prefix:'duração', unit:'q'}},
+  pulse:       {kind:'action', category:'looks', label:'Pulsar', param:{key:'value', default:20, min:5, max:60, step:5, prefix:'duração', unit:'q'}},
+  shake_screen:{kind:'action', category:'looks', label:'Tremer Tela', param:{key:'value', default:4, min:1, max:20, step:1, prefix:'intensidade', unit:''}},
+  trail_on:    {kind:'action', category:'looks', label:'Ativar Rastro', param:{key:'value', default:15, min:5, max:40, step:5, prefix:'tamanho', unit:''}},
+  trail_off:   {kind:'action', category:'looks', label:'Desativar Rastro'},
+  set_opacity: {kind:'action', category:'looks', label:'Definir Transparência', param:{key:'value', default:1, min:0.1, max:1, step:0.05, prefix:'opacidade', unit:''}},
+  rainbow_mode:{kind:'action', category:'looks', label:'Alternar Modo Arco-íris', param:{key:'value', default:4, min:1, max:20, step:1, prefix:'velocidade', unit:''}},
+  cycle_shape: {kind:'action', category:'looks', label:'Trocar Formato'},
+  outline_toggle:{kind:'action', category:'looks', label:'Alternar Contorno', param:{key:'color', type:'color', default:'#ffffff', prefix:'cor'}},
+  glow_toggle: {kind:'action', category:'looks', label:'Alternar Brilho', param:{key:'color', type:'color', default:'#57c2d9', prefix:'cor'}},
+  set_rotation:{kind:'action', category:'looks', label:'Definir Rotação', param:{key:'value', default:0, min:0, max:359, step:5, prefix:'graus', unit:'°'}},
+  fade_in:     {kind:'action', category:'looks', label:'Aparecer Gradualmente', param:{key:'value', default:8, min:1, max:30, step:1, prefix:'velocidade', unit:''}},
+  fade_out:    {kind:'action', category:'looks', label:'Sumir Gradualmente', param:{key:'value', default:8, min:1, max:30, step:1, prefix:'velocidade', unit:''}},
+  invisible_blink:{kind:'action', category:'looks', label:'Piscar Visibilidade', param:{key:'value', default:30, min:10, max:90, step:5, prefix:'duração', unit:'q'}},
+  reset_look:  {kind:'action', category:'looks', label:'Aparência Normal'},
+
+  play_beep:   {kind:'action', category:'sound', label:'Tocar Som Agudo', param:{key:'value', default:0.12, min:0.05, max:0.5, step:0.01, prefix:'duração', unit:'s'}},
+  play_low:    {kind:'action', category:'sound', label:'Tocar Som Grave', param:{key:'value', default:0.15, min:0.05, max:0.5, step:0.01, prefix:'duração', unit:'s'}},
+  play_random_note:{kind:'action', category:'sound', label:'Tocar Nota Aleatória', params:[
+    {key:'min', default:200, min:80, max:1500, step:20, prefix:'mín', unit:'Hz'},
+    {key:'max', default:800, min:100, max:2000, step:20, prefix:'máx', unit:'Hz'},
+  ]},
+  play_victory:{kind:'action', category:'sound', label:'Tocar Som de Vitória', param:{key:'value', default:1, min:0.5, max:2, step:0.1, prefix:'tom', unit:''}},
+  play_hit:    {kind:'action', category:'sound', label:'Tocar Som de Impacto', param:{key:'value', default:0.2, min:0.05, max:0.6, step:0.01, prefix:'duração', unit:'s'}},
+  play_coin_sound:{kind:'action', category:'sound', label:'Tocar Som de Moeda', param:{key:'value', default:1, min:0.5, max:2, step:0.1, prefix:'tom', unit:''}},
+  play_jump_sound:{kind:'action', category:'sound', label:'Tocar Som de Pulo', param:{key:'value', default:1, min:0.5, max:2, step:0.1, prefix:'tom', unit:''}},
+  play_explosion:{kind:'action', category:'sound', label:'Tocar Explosão', param:{key:'value', default:1, min:0.5, max:2, step:0.1, prefix:'intensidade', unit:''}},
+  mute_sounds: {kind:'action', category:'sound', label:'Silenciar Sons'},
+  unmute_sounds:{kind:'action', category:'sound', label:'Ativar Sons'},
+  custom_tone: {kind:'action', category:'sound', label:'Tocar Tom', param:{key:'freq', default:440, min:80, max:2000, step:10, prefix:'frequência', unit:'Hz'}},
+  play_drum:   {kind:'action', category:'sound', label:'Tocar Tambor', param:{key:'value', default:1, min:0.5, max:2, step:0.1, prefix:'tom', unit:''}},
+  play_melody: {kind:'action', category:'sound', label:'Tocar Melodia', param:{key:'value', default:1, min:0.5, max:2, step:0.1, prefix:'tom', unit:''}},
+  set_volume:  {kind:'action', category:'sound', label:'Definir Volume', param:{key:'value', default:70, min:0, max:100, step:5, prefix:'volume', unit:'%'}},
+  play_alarm:  {kind:'action', category:'sound', label:'Tocar Alarme', param:{key:'value', default:140, min:60, max:400, step:10, prefix:'velocidade', unit:'ms'}},
+  play_powerup_sound:{kind:'action', category:'sound', label:'Tocar Som de Power-up', param:{key:'value', default:1, min:0.5, max:2, step:0.1, prefix:'tom', unit:''}},
+
+  spawn_coin:  {kind:'action', category:'control', label:'Criar Moeda'},
+  spawn_coins_multi:{kind:'action', category:'control', label:'Criar Várias Moedas', param:{key:'count', default:5, min:1, max:20, step:1, prefix:'quantidade', unit:''}},
+  spawn_enemy: {kind:'action', category:'control', label:'Criar Inimigo', param:{key:'value', default:1, min:0.3, max:3, step:0.1, prefix:'velocidade', unit:'x'}},
+  spawn_wall:  {kind:'action', category:'control', label:'Criar Parede', params:[
+    {key:'width', default:60, min:10, max:200, step:5, prefix:'largura', unit:'px'},
+    {key:'height', default:18, min:5, max:100, step:5, prefix:'altura', unit:'px'},
+  ]},
+  spawn_powerup:{kind:'action', category:'control', label:'Criar Power-up'},
+  platform:    {kind:'action', category:'control', label:'Criar Plataforma 🧱', params:[
+    {key:'x', default:100, min:0, max:600, step:10, prefix:'x', unit:''},
+    {key:'y', default:300, min:0, max:390, step:10, prefix:'y', unit:''},
+    {key:'width', default:120, min:20, max:400, step:10, prefix:'largura', unit:'px'},
+  ]},
+  remove_enemies:{kind:'action', category:'control', label:'Remover Inimigos'},
+  remove_coins:{kind:'action', category:'control', label:'Remover Moedas'},
+  remove_platforms:{kind:'action', category:'control', label:'Remover Plataformas'},
+  remove_walls:{kind:'action', category:'control', label:'Remover Paredes'},
+  spawn_obstacle:{kind:'action', category:'control', label:'Criar Obstáculo', param:{key:'value', default:3, min:1, max:12, step:1, prefix:'velocidade', unit:''}},
+  spawn_checkpoint:{kind:'action', category:'control', label:'Criar Checkpoint'},
+  spawn_boss:{kind:'action', category:'control', label:'Criar Chefão', param:{key:'value', default:3, min:1, max:10, step:1, prefix:'multiplicador de vida', unit:'x'}},
+  set_enemy_health:{kind:'action', category:'control', label:'Vida dos Inimigos', param:{key:'value', default:3, min:1, max:20, step:1, prefix:'vida', unit:''}},
+  damage_enemy:{kind:'action', category:'control', label:'Atacar Inimigo Próximo', param:{key:'value', default:1, min:1, max:10, step:1, prefix:'dano', unit:''}},
+  spawn_sprite:{kind:'action', category:'control', label:'Criar Sprite 🟦', params:[
+    {key:'x', default:300, min:0, max:600, step:10, prefix:'x', unit:''},
+    {key:'y', default:200, min:0, max:390, step:10, prefix:'y', unit:''},
+    {key:'size', default:20, min:5, max:100, step:5, prefix:'tamanho', unit:'px'},
+    {key:'color', type:'color', default:'#57c2d9', prefix:'cor'},
+  ]},
+  remove_sprites:{kind:'action', category:'control', label:'Remover Sprites'},
+  spawn_random_pickup:{kind:'action', category:'control', label:'Criar Item Aleatório', param:{key:'value', default:20, min:0, max:80, step:5, prefix:'chance de perigo', unit:'%'}},
+  countdown_start:{kind:'action', category:'control', label:'Iniciar Contagem Regressiva', param:{key:'seconds', default:10, min:3, max:120, step:1, prefix:'segundos', unit:'s'}},
+  clear_powerups:{kind:'action', category:'control', label:'Remover Power-ups'},
+  spawn_powerup_multi:{kind:'action', category:'control', label:'Criar Vários Power-ups', param:{key:'count', default:3, min:1, max:15, step:1, prefix:'quantidade', unit:''}},
+  clear_all:   {kind:'action', category:'control', label:'Limpar Tudo'},
+  restart_level:{kind:'action', category:'control', label:'Reiniciar Posição'},
+  toggle_pause:{kind:'action', category:'control', label:'Pausar / Continuar'},
+  set_background_color:{kind:'action', category:'control', label:'Cor de Fundo', param:{key:'color', type:'color', default:'#0c1f16'}},
+  next_level:  {kind:'action', category:'control', label:'Próximo Nível', param:{key:'value', default:1, min:1, max:10, step:1, prefix:'níveis', unit:''}},
+  wait:        {kind:'action', category:'control', label:'Esperar ⏰', param:{key:'seconds', default:1, min:0.1, max:10, step:0.1, prefix:'esperar', unit:'s'}},
+
+  add_point:   {kind:'action', category:'variables', label:'Somar Ponto'},
+  add_points:  {kind:'action', category:'variables', label:'Somar Pontos', param:{key:'value', default:1, min:1, max:20, step:1, prefix:'valor', unit:''}},
+  sub_point:   {kind:'action', category:'variables', label:'Perder Ponto', param:{key:'value', default:1, min:1, max:20, step:1, prefix:'valor', unit:''}},
+  double_score:{kind:'action', category:'variables', label:'Multiplicar Pontuação', param:{key:'value', default:2, min:1.5, max:5, step:0.5, prefix:'multiplicador', unit:'x'}},
+  set_score:   {kind:'action', category:'variables', label:'Definir Pontuação', param:{key:'value', default:0, min:0, max:999, step:1, prefix:'valor', unit:''}},
+  reset_score: {kind:'action', category:'variables', label:'Zerar Pontos'},
+  save_record: {kind:'action', category:'variables', label:'Salvar Recorde'},
+  gain_life:   {kind:'action', category:'variables', label:'Ganhar Vida'},
+  lose_life:   {kind:'action', category:'variables', label:'Perder Vida'},
+  gain_lives:  {kind:'action', category:'variables', label:'Ganhar Vidas', param:{key:'value', default:2, min:1, max:9, step:1, prefix:'quantidade', unit:''}},
+  lose_lives:  {kind:'action', category:'variables', label:'Perder Vidas', param:{key:'value', default:2, min:1, max:9, step:1, prefix:'quantidade', unit:''}},
+  set_lives:   {kind:'action', category:'variables', label:'Definir Vidas', param:{key:'value', default:3, min:1, max:9, step:1, prefix:'valor', unit:''}},
+  reset_all:   {kind:'action', category:'variables', label:'Reiniciar Tudo'},
+  toggle_passive_income:{kind:'action', category:'variables', label:'Alternar Renda Passiva'},
+  set_income_rate:{kind:'action', category:'variables', label:'Definir Renda Por Segundo', param:{key:'value', default:1, min:1, max:20, step:1, prefix:'valor', unit:''}},
+  convert_lives_to_points:{kind:'action', category:'variables', label:'Trocar Vida por Pontos', param:{key:'value', default:5, min:1, max:30, step:1, prefix:'pontos', unit:''}},
+  game_speed:  {kind:'action', category:'variables', label:'Velocidade do Jogo', param:{key:'value', default:1, min:0.2, max:3, step:0.1, prefix:'x', unit:''}},
+  auto_click:  {kind:'action', category:'variables', label:'Alternar Clique Automático'},
+  click_power: {kind:'action', category:'variables', label:'Poder do Clique', param:{key:'value', default:1, min:1, max:20, step:1, prefix:'valor', unit:''}},
+  add_click_points:{kind:'action', category:'variables', label:'Somar Pontos de Clique'},
+  lose_game:   {kind:'action', category:'variables', label:'Perder Jogo'},
+  win_game:    {kind:'action', category:'variables', label:'Vencer Jogo'},
+
+  hit_ground:  {kind:'trigger', category:'physics', label:'Tocou no Chão'},
+  enable_gravity: {kind:'action', category:'physics', label:'Ativar Gravidade'},
+  disable_gravity:{kind:'action', category:'physics', label:'Desativar Gravidade'},
+  anti_gravity:{kind:'action', category:'physics', label:'Alternar Gravidade Invertida'},
+  gravity_strength:{kind:'action', category:'physics', label:'Força da Gravidade', param:{key:'value', default:0.5, min:0.1, max:2, step:0.1, prefix:'força', unit:''}},
+  jump:        {kind:'action', category:'physics', label:'Pular', param:{key:'value', default:12, min:4, max:30, step:1, prefix:'impulso', unit:''}},
+  double_jump: {kind:'action', category:'physics', label:'Ativar Pulos Múltiplos', param:{key:'value', default:2, min:2, max:5, step:1, prefix:'máximo de pulos', unit:''}},
+  push_left:   {kind:'action', category:'physics', label:'Empurrar ←', param:{key:'value', default:1.2, min:0.2, max:5, step:0.1, prefix:'força', unit:''}},
+  push_right:  {kind:'action', category:'physics', label:'Empurrar →', param:{key:'value', default:1.2, min:0.2, max:5, step:0.1, prefix:'força', unit:''}},
+  push_forward:{kind:'action', category:'physics', label:'Empurrar Para Frente', param:{key:'value', default:1.2, min:0.2, max:5, step:0.1, prefix:'força', unit:''}},
+  bounce:      {kind:'action', category:'physics', label:'Quicar', param:{key:'value', default:0.85, min:0.3, max:1.3, step:0.05, prefix:'força', unit:''}},
+  set_bounce_factor:{kind:'action', category:'physics', label:'Força do Quique', param:{key:'value', default:0.85, min:0.1, max:1.2, step:0.05, prefix:'valor', unit:''}},
+  friction:    {kind:'action', category:'physics', label:'Definir Atrito', param:{key:'value', default:0.9, min:0.5, max:0.99, step:0.01, prefix:'atrito', unit:''}},
+  ice_floor:   {kind:'action', category:'physics', label:'Alternar Chão Escorregadio'},
+  sticky_walls:{kind:'action', category:'physics', label:'Alternar Paredes Grudentas'},
+  freeze_physics:{kind:'action', category:'physics', label:'Congelar Física', param:{key:'seconds', default:2, min:0.5, max:10, step:0.5, prefix:'duração', unit:'s'}},
+  max_fall:    {kind:'action', category:'physics', label:'Limite de Queda', param:{key:'value', default:15, min:5, max:40, step:1, prefix:'máximo', unit:''}},
+  shield:      {kind:'action', category:'physics', label:'Alternar Escudo'},
+  knockback:   {kind:'action', category:'physics', label:'Repelir Inimigo Próximo', param:{key:'value', default:50, min:10, max:200, step:10, prefix:'distância', unit:'px'}},
+  invert_controls:{kind:'action', category:'physics', label:'Alternar Controles Invertidos'},
+
+  if_score_atleast:{kind:'action', category:'logic', label:'Se Pontuação ≥', param:{key:'value', default:5, min:0, max:999, step:1, prefix:'valor', unit:''}},
+  if_lives_atleast:{kind:'action', category:'logic', label:'Se Vidas ≥', param:{key:'value', default:2, min:0, max:9, step:1, prefix:'valor', unit:''}},
+  if_level_atleast:{kind:'action', category:'logic', label:'Se Nível ≥', param:{key:'value', default:2, min:1, max:99, step:1, prefix:'valor', unit:''}},
+  if_grounded:{kind:'action', category:'logic', label:'Se Estiver no Chão'},
+  if_moving:{kind:'action', category:'logic', label:'Se Estiver se Movendo'},
+  if_shielded:{kind:'action', category:'logic', label:'Se Escudo Estiver Ativo'},
+  if_chance:{kind:'action', category:'logic', label:'Se a Sorte Der', param:{key:'value', default:50, min:1, max:99, step:1, prefix:'chance', unit:'%'}},
+  if_random_pick:{kind:'action', category:'logic', label:'Cara ou Coroa (50/50)'},
+};
+const NODE_W = 190, NODE_H = 46;
+
+let nodes = [];
+let connections = [];
+let idCounter = 1;
+
+const EXAMPLES = {
+  coins: {
+    name:'Exemplo: Moedas',
+    nodes:[
+      {id:'a1',type:'start',x:60,y:30},
+      {id:'a2',type:'timer',x:60,y:100},
+      {id:'a3',type:'key_up',x:60,y:170},
+      {id:'a4',type:'key_down',x:60,y:240},
+      {id:'a5',type:'key_left',x:60,y:310},
+      {id:'a6',type:'key_right',x:60,y:380},
+      {id:'a7',type:'hit_coin',x:60,y:450},
+      {id:'a8',type:'hit_enemy',x:60,y:520},
+      {id:'b1',type:'spawn_coin',x:440,y:30},
+      {id:'b2',type:'spawn_enemy',x:440,y:100},
+      {id:'b3',type:'move_up',x:440,y:170},
+      {id:'b4',type:'move_down',x:440,y:240},
+      {id:'b5',type:'move_left',x:440,y:310},
+      {id:'b6',type:'move_right',x:440,y:380},
+      {id:'b7',type:'add_point',x:440,y:450},
+      {id:'b8',type:'lose_game',x:440,y:520},
+      {id:'b9',type:'play_beep',x:440,y:590},
+    ],
+    connections:[
+      {from:'a1',to:'b1'},{from:'a1',to:'b2'},{from:'a2',to:'b1'},
+      {from:'a3',to:'b3'},{from:'a4',to:'b4'},{from:'a5',to:'b5'},{from:'a6',to:'b6'},
+      {from:'a7',to:'b7'},{from:'a7',to:'b9'},{from:'a8',to:'b8'},
+    ]
+  },
+  racing: {
+    name:'Exemplo: Corrida de Pistas',
+    nodes:[
+      {id:'a1',type:'start',x:60,y:30},
+      {id:'a2',type:'timer',x:60,y:100,value:1.5},
+      {id:'a3',type:'key_left',x:60,y:170},
+      {id:'a4',type:'key_right',x:60,y:240},
+      {id:'a5',type:'hit_obstacle',x:60,y:310},
+      {id:'a6',type:'hit_checkpoint',x:60,y:380},
+      {id:'b1',type:'set_lanes',x:440,y:30,value:3},
+      {id:'b2',type:'spawn_obstacle',x:440,y:100},
+      {id:'b3',type:'spawn_checkpoint',x:440,y:170},
+      {id:'b4',type:'lane_left',x:440,y:240},
+      {id:'b5',type:'lane_right',x:440,y:310},
+      {id:'b6',type:'lose_life',x:440,y:380},
+      {id:'b7',type:'add_points',x:440,y:450,value:2},
+    ],
+    connections:[
+      {from:'a1',to:'b1'},{from:'a2',to:'b2'},{from:'a2',to:'b3'},
+      {from:'a3',to:'b4'},{from:'a4',to:'b5'},{from:'a5',to:'b6'},{from:'a6',to:'b7'},
+    ]
+  },
+  clicker: {
+    name:'Exemplo: Clique Rápido',
+    nodes:[
+      {id:'a1',type:'start',x:60,y:30},
+      {id:'a2',type:'mouse_click',x:60,y:100},
+      {id:'a3',type:'score_reached',x:60,y:170,value:15},
+      {id:'b1',type:'click_power',x:440,y:30,value:2},
+      {id:'b2',type:'add_click_points',x:440,y:100},
+      {id:'b3',type:'play_coin_sound',x:440,y:170},
+      {id:'b4',type:'win_game',x:440,y:240},
+    ],
+    connections:[
+      {from:'a1',to:'b1'},{from:'a2',to:'b2'},{from:'a2',to:'b3'},{from:'a3',to:'b4'},
+    ]
+  }
+};
+
+const paletteEl = document.getElementById('palette');
+function buildPalette(){
+  let html = '';
+  CATEGORY_ORDER.forEach(cat=>{
+    const blocksOfCat = Object.entries(NODE_TYPES).filter(([,def])=>def.category===cat);
+    html += `<h4 data-cat="${cat}" style="color:${CATEGORY_COLORS[cat]}"><span>${CATEGORY_LABELS[cat]}</span><span class="cat-count">${blocksOfCat.length}</span><span class="cat-arrow">▼</span></h4>`;
+    html += `<div class="cat-blocks" data-cat-blocks="${cat}">`;
+    blocksOfCat.forEach(([type,def])=>{
+      html += `<button class="pnode" style="border-left-color:${CATEGORY_COLORS[cat]}" data-type="${type}">${def.label}</button>`;
+    });
+    html += '</div>';
+  });
+  html += '<div class="hint">Clique no nome de uma parte pra abrir ou fechar os blocos dela, como no Scratch. Ligue a saída (direita) de um gatilho ou ação até a entrada (esquerda) de uma ação — ações também têm saída, então dá pra encadear várias em sequência. Clique num cabo pra removê-lo.</div>';
+  paletteEl.innerHTML = html;
+  paletteEl.querySelectorAll('.pnode').forEach(btn=>{
+    btn.addEventListener('click', ()=> addNode(btn.dataset.type));
+  });
+  paletteEl.querySelectorAll('h4[data-cat]').forEach(h=>{
+    h.addEventListener('click', ()=>{
+      const blocks = paletteEl.querySelector(`.cat-blocks[data-cat-blocks="${h.dataset.cat}"]`);
+      blocks.classList.toggle('collapsed');
+      h.classList.toggle('collapsed');
+    });
+  });
+}
+buildPalette();
+
+(function initStorageBanner(){
+  const banner = document.getElementById('storageBanner');
+  if(!hasStorage()){
+    banner.classList.remove('hidden');
+    banner.innerHTML = 'ℹ️ Sua Galeria é pessoal, guardada neste navegador. Dica: use Exportar/Importar pra trocar jogos com amigos — eles entram na sua Galeria também! <button id="dismissBanner">Entendi</button>';
+    document.getElementById('dismissBanner').addEventListener('click', ()=> banner.classList.add('hidden'));
+  }
+})();
+
+function addNode(type){
+  const id = 'n'+(idCounter++);
+  const stack = nodes.length % 7;
+  nodes.push({id, type, x: 60 + (nodes.length%2)*380, y: 30 + stack*80});
+  renderAll();
+}
+
+const boardEl = document.getElementById('board');
+const wiresSvg = document.getElementById('wires');
+
+function renderAll(){
+  boardEl.querySelectorAll('.node').forEach(n=>n.remove());
+  nodes.forEach(renderNode);
+  redrawWires();
+}
+
+function renderNode(n){
+  const def = NODE_TYPES[n.type];
+  if(!def) return; // unknown/removed block type in an old saved game — skip instead of crashing
+  const color = CATEGORY_COLORS[def.category];
+  if(def.param && n.value===undefined) n.value = def.param.default;
+  if(def.params && !n.values){
+    n.values = {};
+    def.params.forEach(p=> n.values[p.key]=p.default);
+  }
+  const div = document.createElement('div');
+  div.className = 'node';
+  div.style.left = n.x+'px';
+  div.style.top = n.y+'px';
+  div.style.width = NODE_W+'px';
+  div.dataset.id = n.id;
+
+  let bodyContent = CATEGORY_LABELS[def.category];
+  if(def.params){
+    bodyContent = def.params.map(p=>{
+      if(p.type==='color'){
+        return `<span>${p.prefix}</span> <input type="color" class="param-input" data-key="${p.key}" value="${n.values[p.key]}" style="width:28px;height:16px;margin:0 4px 0 3px;border:1px solid ${color}66;background:none;padding:0;cursor:pointer;vertical-align:middle;">`;
+      }
+      return `<span>${p.prefix}</span> <input type="number" class="param-input" data-key="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${n.values[p.key]}" style="width:40px;margin:0 4px 0 3px;background:${color}22;border:1px solid ${color}66;color:${color};border-radius:3px;font-family:inherit;font-size:10px;padding:2px 3px;">${p.unit||''}`;
+    }).join(' ');
+  } else if(def.param && def.param.type==='color'){
+    bodyContent = `<span>${def.param.prefix||'cor'}</span> <input type="color" class="param-input" value="${n.value}" style="width:34px;height:18px;margin-left:5px;border:1px solid ${color}66;background:none;padding:0;cursor:pointer;vertical-align:middle;">`;
+  } else if(def.param){
+    bodyContent = `<span>${def.param.prefix}</span>
+       <input type="number" class="param-input" min="${def.param.min}" max="${def.param.max}" step="${def.param.step}" value="${n.value}" style="width:50px;margin-left:5px;background:${color}22;border:1px solid ${color}66;color:${color};border-radius:3px;font-family:inherit;font-size:10px;padding:2px 4px;">${def.param.unit}`;
+  }
+
+  div.innerHTML = `
+    <div class="node-head" style="background:${color}2a;color:${color}">${def.label}<button class="node-del">×</button></div>
+    <div class="node-body">${bodyContent}</div>
+    ${(def.kind==='trigger' || def.kind==='action') ? `<div class="port port-out" data-node="${n.id}" style="background:${color};box-shadow:0 0 6px ${color}"></div>` : ''}
+    ${def.kind==='action' ? `<div class="port port-in" data-node="${n.id}" style="background:${color};box-shadow:0 0 6px ${color}"></div>` : ''}
+  `;
+  boardEl.appendChild(div);
+
+  div.querySelectorAll('.param-input').forEach(inp=>{
+    inp.addEventListener('pointerdown', e=> e.stopPropagation());
+    inp.addEventListener('mousedown', e=> e.stopPropagation());
+    inp.addEventListener('change', ()=>{
+      const key = inp.dataset.key;
+      if(key){
+        // part of a multi-param (def.params) block — always store under n.values[key], color or numeric
+        const pdef = def.params.find(p=>p.key===key);
+        let v = inp.type==='color' ? inp.value : parseFloat(inp.value);
+        if(inp.type!=='color'){
+          if(isNaN(v)) v = pdef.default;
+          v = Math.max(pdef.min, Math.min(pdef.max, v));
+        }
+        n.values[key] = v; inp.value = v;
+      } else if(inp.type==='color'){
+        n.value = inp.value;
+      } else {
+        let v = parseFloat(inp.value);
+        if(isNaN(v)) v = def.param.default;
+        v = Math.max(def.param.min, Math.min(def.param.max, v));
+        n.value = v; inp.value = v;
+      }
+    });
+  });
+
+  div.querySelector('.node-del').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    nodes = nodes.filter(x=>x.id!==n.id);
+    connections = connections.filter(c=>c.from!==n.id && c.to!==n.id);
+    renderAll();
+  });
+
+  div.querySelector('.node-head').addEventListener('pointerdown', (e)=>{
+    if(e.target.classList.contains('node-del')) return;
+    e.preventDefault();
+    const rect = boardEl.getBoundingClientRect();
+    const offX = e.clientX - rect.left - n.x;
+    const offY = e.clientY - rect.top - n.y;
+    function onMove(ev){
+      const r = boardEl.getBoundingClientRect();
+      n.x = Math.max(0, ev.clientX - r.left - offX);
+      n.y = Math.max(0, ev.clientY - r.top - offY);
+      div.style.left = n.x+'px';
+      div.style.top = n.y+'px';
+      redrawWires();
+    }
+    function onUp(){
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+  });
+
+  const portOut = div.querySelector('.port-out');
+  if(portOut) portOut.addEventListener('pointerdown', (e)=> startConnect(e, n.id));
+}
+
+function portPos(nodeId, side){
+  const n = nodes.find(x=>x.id===nodeId);
+  const y = n.y + NODE_H/2;
+  return side==='out' ? {x:n.x+NODE_W, y} : {x:n.x, y};
+}
+
+function wirePath(p1, p2){
+  const dx = Math.max(40, (p2.x-p1.x)/2);
+  return `M ${p1.x} ${p1.y} C ${p1.x+dx} ${p1.y}, ${p2.x-dx} ${p2.y}, ${p2.x} ${p2.y}`;
+}
+
+function redrawWires(){
+  wiresSvg.querySelectorAll('.wire, .wire-hit').forEach(w=>w.remove());
+  connections.forEach((c, idx)=>{
+    const p1 = portPos(c.from,'out');
+    const p2 = portPos(c.to,'in');
+    const d = wirePath(p1,p2);
+
+    const visible = document.createElementNS('http://www.w3.org/2000/svg','path');
+    visible.setAttribute('d', d);
+    visible.setAttribute('class','wire');
+    visible.dataset.idx = idx;
+    wiresSvg.appendChild(visible);
+
+    // wide invisible path so it's easy to tap/click on mobile and desktop
+    const hit = document.createElementNS('http://www.w3.org/2000/svg','path');
+    hit.setAttribute('d', d);
+    hit.setAttribute('class','wire-hit');
+    hit.dataset.idx = idx;
+    hit.addEventListener('mouseenter', ()=> visible.classList.add('hover-del'));
+    hit.addEventListener('mouseleave', ()=> visible.classList.remove('hover-del'));
+    hit.addEventListener('click', ()=>{
+      connections.splice(idx,1);
+      redrawWires();
+    });
+    wiresSvg.appendChild(hit);
+  });
+}
+
+function wouldCreateCycle(fromId, toId){
+  const stack=[toId]; const visited=new Set();
+  while(stack.length){
+    const cur = stack.pop();
+    if(cur===fromId) return true;
+    if(visited.has(cur)) continue;
+    visited.add(cur);
+    connections.filter(c=>c.from===cur).forEach(c=> stack.push(c.to));
+  }
+  return false;
+}
+
+let tempPath = null;
+function startConnect(e, fromId){
+  e.stopPropagation();
+  e.preventDefault();
+  tempPath = document.createElementNS('http://www.w3.org/2000/svg','path');
+  tempPath.id = 'tempWire';
+  wiresSvg.appendChild(tempPath);
+
+  function onMove(ev){
+    const r = boardEl.getBoundingClientRect();
+    const p1 = portPos(fromId,'out');
+    const p2 = {x: ev.clientX-r.left, y: ev.clientY-r.top};
+    tempPath.setAttribute('d', wirePath(p1,p2));
+  }
+  function onUp(ev){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onUp);
+    if(tempPath){ tempPath.remove(); tempPath=null; }
+    const target = document.elementFromPoint(ev.clientX, ev.clientY);
+    if(target && target.classList.contains('port-in')){
+      const toId = target.dataset.node;
+      const exists = connections.some(c=>c.from===fromId && c.to===toId);
+      if(!exists && toId!==fromId){
+        if(wouldCreateCycle(fromId, toId)){
+          toast('Isso criaria um loop — não é permitido.');
+        } else {
+          connections.push({from:fromId, to:toId});
+          redrawWires();
+        }
+      }
+    }
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onUp);
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+document.getElementById('exampleSelect').addEventListener('change', function(){
+  const key = this.value;
+  if(!key) return;
+  const ex = EXAMPLES[key];
+  nodes = JSON.parse(JSON.stringify(ex.nodes));
+  connections = JSON.parse(JSON.stringify(ex.connections));
+  document.getElementById('gameName').value = ex.name;
+  renderAll();
+  toast('Exemplo carregado — clique em Testar!');
+  this.value = '';
+});
+
+document.getElementById('btnClear').addEventListener('click', ()=>{
+  nodes = []; connections = [];
+  renderAll();
+  toast('Canvas limpo.');
+});
+
+document.getElementById('btnPlay').addEventListener('click', ()=>{
+  if(nodes.length===0){ toast('Adicione peças e conecte cabos primeiro!'); return; }
+  playGame(nodes, connections, document.getElementById('gameName').value || 'Teste');
+});
+
+function hasStorage(){
+  return typeof window.storage !== 'undefined' && window.storage !== null;
+}
+function lsNamespacedKey(key, shared){ return 'circuitojogos_' + (shared?'shared_':'local_') + key; }
+
+async function storageGet(key, shared){
+  if(hasStorage()){
+    try{ return await window.storage.get(key, shared); }catch(e){ return null; }
+  }
+  try{
+    const raw = localStorage.getItem(lsNamespacedKey(key, shared));
+    if(raw===null) return null;
+    return {key, value:raw, shared};
+  }catch(e){ return null; }
+}
+async function storageSet(key, value, shared){
+  if(hasStorage()){
+    try{ return await window.storage.set(key, value, shared); }catch(e){ return null; }
+  }
+  try{ localStorage.setItem(lsNamespacedKey(key, shared), value); return {key, value, shared}; }
+  catch(e){ return null; }
+}
+async function storageList(prefix, shared){
+  if(hasStorage()){
+    try{ return await window.storage.list(prefix, shared); }catch(e){ return null; }
+  }
+  try{
+    const nsPrefix = lsNamespacedKey(prefix, shared);
+    const keys = [];
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      if(k && k.indexOf(nsPrefix)===0) keys.push(k.slice(nsPrefix.length - prefix.length));
+    }
+    return {keys, prefix, shared};
+  }catch(e){ return null; }
+}
+async function storageDelete(key, shared){
+  if(hasStorage()){
+    try{ return await window.storage.delete(key, shared); }catch(e){ return null; }
+  }
+  try{ localStorage.removeItem(lsNamespacedKey(key, shared)); return {key, deleted:true, shared}; }
+  catch(e){ return null; }
+}
+
+let cachedOwnerId = null;
+async function getOwnerId(){
+  if(cachedOwnerId) return cachedOwnerId;
+  try{
+    const existing = await storageGet('ownerId', false); // personal, not shared
+    if(existing && existing.value){ cachedOwnerId = existing.value; return cachedOwnerId; }
+  }catch(e){ /* key doesn't exist yet, fall through to create one */ }
+  const id = 'owner_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  try{ await storageSet('ownerId', id, false); }catch(e){ /* best effort */ }
+  cachedOwnerId = id;
+  return id;
+}
+
+async function nameAlreadyUsed(name){
+  try{
+    const res = await storageList('games:', true);
+    if(!res || !res.keys) return false;
+    const target = name.trim().toLowerCase();
+    for(const key of res.keys){
+      try{
+        const item = await storageGet(key, true);
+        if(!item) continue;
+        const data = JSON.parse(item.value);
+        if((data.name||'').trim().toLowerCase() === target) return true;
+      }catch(inner){ continue; } // a single missing/corrupted key shouldn't abort the whole check
+    }
+  }catch(e){ /* if the check fails, allow the save rather than blocking the user */ }
+  return false;
+}
+
+document.getElementById('btnSave').addEventListener('click', async ()=>{
+  if(nodes.length===0){ toast('Nada para salvar ainda.'); return; }
+  const name = document.getElementById('gameName').value.trim() || 'Jogo sem nome';
+  const saveBtn = document.getElementById('btnSave');
+  saveBtn.disabled = true;
+  toast('Verificando nome...');
+  const used = await nameAlreadyUsed(name);
+  if(used){
+    saveBtn.disabled = false;
+    toast('Já existe um jogo com esse nome — mude o nome pra salvar essa versão.');
+    return;
+  }
+  const id = 'game_'+Date.now();
+  const ownerId = await getOwnerId();
+  const data = { name, nodes, connections, ts: Date.now(), ownerId };
+  try{
+    const res = await storageSet('games:'+id, JSON.stringify(data), true);
+    if(res){ toast(hasStorage() ? 'Jogo salvo na galeria! Outras pessoas já podem jogá-lo.' : 'Jogo salvo neste navegador!'); }
+    else { toast('Não foi possível salvar — tente de novo.'); }
+  }catch(err){ toast('Erro ao salvar: '+(err && err.message ? err.message : 'tente novamente')); }
+  saveBtn.disabled = false;
+});
+
+document.querySelectorAll('[data-close]').forEach(b=>{
+  b.addEventListener('click', ()=> document.getElementById(b.dataset.close).classList.add('hidden'));
+});
+
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  if(nodes.length===0){ toast('Nada para exportar ainda.'); return; }
+  const name = document.getElementById('gameName').value.trim() || 'Jogo sem nome';
+  const payload = { name, nodes, connections };
+  document.getElementById('exportText').value = JSON.stringify(payload);
+  document.getElementById('exportModal').classList.remove('hidden');
+});
+document.getElementById('btnCopyExport').addEventListener('click', async ()=>{
+  const ta = document.getElementById('exportText');
+  ta.select();
+  try{
+    await navigator.clipboard.writeText(ta.value);
+    toast('Copiado! Cole em qualquer lugar pra guardar.');
+  }catch(e){
+    toast('Não copiou automaticamente — selecione o texto e copie manualmente (Ctrl/Cmd+C).');
+  }
+});
+document.getElementById('btnImport').addEventListener('click', ()=>{
+  document.getElementById('importText').value = '';
+  document.getElementById('importModal').classList.remove('hidden');
+});
+document.getElementById('btnDoImport').addEventListener('click', async ()=>{
+  const raw = document.getElementById('importText').value.trim();
+  if(!raw){ toast('Cole o texto exportado primeiro.'); return; }
+  try{
+    const data = JSON.parse(raw);
+    if(!data.nodes || !Array.isArray(data.nodes)){ toast('Texto inválido — não parece um jogo exportado.'); return; }
+    nodes = data.nodes;
+    connections = data.connections||[];
+    const importedName = data.name || 'Jogo importado';
+    document.getElementById('gameName').value = importedName;
+    renderAll();
+    document.getElementById('importModal').classList.add('hidden');
+
+    // also save a copy into the gallery, so friends' shared games pile up there over time
+    try{
+      const id = 'game_'+Date.now();
+      const ownerId = await getOwnerId();
+      const galleryData = { name: importedName+' (de um amigo)', nodes, connections, ts: Date.now(), ownerId };
+      await storageSet('games:'+id, JSON.stringify(galleryData), true);
+      toast('Jogo carregado no editor e guardado na sua Galeria!');
+    }catch(e){
+      toast('Jogo carregado no editor!');
+    }
+  }catch(e){ toast('Não consegui ler esse texto — confira se colou tudo certinho.'); }
+});
+
+document.getElementById('btnGallery').addEventListener('click', openGallery);
+
+document.getElementById('btnDeleteAllMine').addEventListener('click', async function(){
+  const btn = this;
+  if(!btn.dataset.confirming){
+    btn.dataset.confirming = '1';
+    btn.textContent = 'Tem certeza? Clique de novo pra confirmar';
+    setTimeout(()=>{ if(btn.dataset.confirming){ btn.dataset.confirming=''; btn.textContent='🗑️ Excluir Todos os Meus Jogos'; } }, 4000);
+    return;
+  }
+  btn.dataset.confirming = '';
+  btn.disabled = true;
+  btn.textContent = 'Excluindo...';
+  try{
+    const myOwnerId = await getOwnerId();
+    const res = await storageList('games:', true);
+    let count = 0;
+    if(res && res.keys){
+      for(const key of res.keys){
+        try{
+          const item = await storageGet(key, true);
+          if(!item) continue;
+          const data = JSON.parse(item.value);
+          if(myOwnerId && data.ownerId===myOwnerId){
+            await storageDelete(key, true);
+            count++;
+          }
+        }catch(e){ /* skip broken entry */ }
+      }
+    }
+    toast(count>0 ? `${count} jogo(s) excluído(s).` : 'Você não tinha jogos salvos.');
+    openGallery();
+  }catch(e){ toast('Não foi possível excluir tudo — tente de novo.'); }
+  btn.disabled = false;
+  btn.textContent = '🗑️ Excluir Todos os Meus Jogos';
+});
+async function openGallery(){
+  const modal = document.getElementById('galleryModal');
+  modal.classList.remove('hidden');
+  const list = document.getElementById('galleryList');
+  const sub = document.getElementById('gallerySub');
+  if(sub) sub.textContent = hasStorage()
+    ? 'Jogos salvos por qualquer pessoa que use este circuito. Salvar aqui torna seu jogo visível para todos.'
+    : 'Sua galeria pessoal: os jogos que você cria, mais os que você importa de amigos, ficam guardados aqui neste navegador.';
+  list.textContent = 'Carregando...';
+  const myOwnerId = await getOwnerId();
+  try{
+    const res = await storageList('games:', true);
+    if(!res || !res.keys || res.keys.length===0){
+      list.innerHTML = '<div class="sub">Nenhum jogo salvo ainda. Crie o primeiro!</div>';
+      return;
+    }
+    list.innerHTML = '';
+    for(const key of res.keys){
+      try{
+        const item = await storageGet(key, true);
+        if(!item) continue;
+        const data = JSON.parse(item.value);
+        const isMine = myOwnerId && data.ownerId && data.ownerId===myOwnerId;
+        const card = document.createElement('div');
+        card.className = 'gcard';
+        card.innerHTML = `
+          <div>
+            <div>${escapeHtml(data.name||'Sem nome')}</div>
+            <div class="meta">${(data.nodes||[]).length} peças · ${(data.connections||[]).length} cabos${isMine ? ' · seu jogo' : ''}</div>
+          </div>
+          <div class="gbtns">
+            <button class="playBtn">🚪 Entrar</button>
+            <button class="remixBtn">✏️ Remixar</button>
+            ${isMine ? '<button class="delBtn danger">🗑️</button>' : ''}
+          </div>`;
+        card.querySelector('.playBtn').addEventListener('click', ()=>{
+          modal.classList.add('hidden');
+          playGame(data.nodes, data.connections, data.name);
+        });
+        card.querySelector('.remixBtn').addEventListener('click', ()=>{
+          nodes = JSON.parse(JSON.stringify(data.nodes));
+          connections = JSON.parse(JSON.stringify(data.connections));
+          document.getElementById('gameName').value = data.name+' (remix)';
+          renderAll();
+          modal.classList.add('hidden');
+          toast('Carregado no editor pra você remixar.');
+        });
+        const delBtn = card.querySelector('.delBtn');
+        if(delBtn){
+          delBtn.addEventListener('click', async ()=>{
+            if(!delBtn.dataset.confirming){
+              delBtn.dataset.confirming = '1';
+              delBtn.textContent = 'Confirmar?';
+              setTimeout(()=>{ if(delBtn.dataset.confirming){ delBtn.dataset.confirming=''; delBtn.textContent='🗑️'; } }, 3000);
+              return;
+            }
+            delBtn.disabled = true;
+            try{
+              await storageDelete(key, true);
+              card.remove();
+              toast('Jogo excluído.');
+            }catch(e){ toast('Não foi possível excluir — tente de novo.'); delBtn.disabled=false; delBtn.dataset.confirming=''; delBtn.textContent='🗑️'; }
+          });
+        }
+        list.appendChild(card);
+      }catch(e){ /* skip broken entry */ }
+    }
+  }catch(err){
+    list.innerHTML = '<div class="sub">Erro ao carregar a galeria.</div>';
+  }
+}
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const PLAYER_COLORS = ['#4fd8d1','#f2c744','#b07bf2','#ff7f5c','#57c2d9','#7be08a'];
+
+function playGame(nodesArg, connectionsArg, title){
+  document.getElementById('playOverlay').classList.remove('hidden');
+  document.getElementById('endMsg').classList.add('hidden');
+  document.getElementById('playTitle').textContent = title.toUpperCase();
+  document.getElementById('scoreLabel').textContent = '0';
+  document.getElementById('livesLabel').textContent = '3';
+  document.getElementById('levelLabel').textContent = '1';
+
+  const nodeById = {};
+  nodesArg.forEach(n=>nodeById[n.id]=n);
+  const typeOf = {};
+  nodesArg.forEach(n=>typeOf[n.id]=n.type);
+
+  const triggerActions = {};
+  connectionsArg.forEach(c=>{
+    const ft = typeOf[c.from], toNode = nodeById[c.to];
+    if(!ft || !toNode) return;
+    (triggerActions[ft] = triggerActions[ft]||[]).push(toNode);
+  });
+
+  const timerNodes = nodesArg.filter(n=>n.type==='timer').map(n=>({
+    node:n, actions: connectionsArg.filter(c=>c.from===n.id).map(c=>nodeById[c.to]).filter(Boolean)
+  }));
+  const scoreTriggers = nodesArg.filter(n=>n.type==='score_reached').map(n=>({
+    node:n, actions: connectionsArg.filter(c=>c.from===n.id).map(c=>nodeById[c.to]).filter(Boolean), fired:false
+  }));
+  const nearEnemyTriggers = nodesArg.filter(n=>n.type==='near_enemy').map(n=>({
+    node:n, actions: connectionsArg.filter(c=>c.from===n.id).map(c=>nodeById[c.to]).filter(Boolean), fired:false
+  }));
+
+  const hasAnyWire = connectionsArg.length>0;
+  const hintEl = document.getElementById('playHint');
+  hintEl.textContent = !hasAnyWire
+    ? 'Nenhum cabo conectado — volte ao editor e ligue os gatilhos às ações!'
+    : 'Setas/WASD pra mover, espaço e enter pra ações especiais (se conectado). Colete 10 moedas pra vencer.';
+
+  let audioCtx = null;
+  function beep(freq, dur, delay){
+    if(state.muted) return;
+    delay = delay||0;
+    setTimeout(()=>{
+      if(state.muted) return;
+      try{
+        if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.value = freq;
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(state.volume, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
+        osc.start(); osc.stop(audioCtx.currentTime+dur);
+      }catch(e){ /* audio unavailable, ignore */ }
+    }, delay);
+  }
+  async function saveRecordAsync(score){
+    try{
+      const cur = await storageGet('highscore', false);
+      const best = cur ? (parseInt(cur.value)||0) : 0;
+      if(score>best) await storageSet('highscore', String(score), false);
+    }catch(e){ /* ignore */ }
+  }
+
+  const ENEMY_SPEED = 1.6, FORCE = 1.2;
+  const KEYMAP = {ArrowUp:'key_up', ArrowDown:'key_down', ArrowLeft:'key_left', ArrowRight:'key_right',
+    w:'key_w', a:'key_a', s:'key_s', d:'key_d'};
+  const state = {
+    player:{x:308,y:340,w:24,h:24,color:PLAYER_COLORS[0],colorIdx:0,rotation:0,visible:true,flashTimer:0,pulseTimer:0,
+      vx:0,vy:0,grounded:true,facing:1,hue:0,shapeIdx:0,outline:false,glow:false,flipV:false,targetOpacity:1,
+      fadeSpeed:0.08,outlineColor:'#ffffff',glowColor:'#57c2d9'},
+    coins:[], enemies:[], walls:[], powerups:[], trail:[], obstacles:[], checkpoints:[], sprites:[],
+    score:0, lives:3, level:1,
+    running:true, paused:false, keys:{}, wasAtEdge:false,
+    wasAtEdgeL:false, wasAtEdgeR:false, wasAtEdgeT:false, wasAtEdgeB:false,
+    wasFalling:false, prevEnemiesEmpty:true, prevCoinsEmpty:true,
+    wrapEdges:false, trailOn:false, rainbow:false, muted:false, opacity:1,
+    boostTimer:0, shakeTimer:0, shakeIntensity:4, bgColor:'#0c1f16', gameSpeedMultiplier:1, lastClick:null,
+    lanes:3, currentLane:1, enemyHealthDefault:3, clickPower:1, autoClickOn:false,
+    shielded:false, invertControls:false, wasNearEnemy:false, wasLivesLow:false,
+    countdownActive:false, countdownValue:0, passiveIncomeOn:false, incomeRate:1,
+    blinkTimer:0, volume:0.15, trailMax:15, rainbowSpeed:4,
+    physics:{gravityOn:false, gravityStrength:0.5, friction:0.9, maxFall:15, doubleJump:false, jumpsUsed:0, maxJumps:2,
+      antiGravityOn:false, sticky:false, ice:false, freezeTimer:0, bounceFactor:0.85},
+  };
+  function laneCenterX(idx){ return (idx+0.5)*(canvas.width/state.lanes) - state.player.w/2; }
+
+  function rand(min,max){ return min + Math.random()*(max-min); }
+  function overlap(a,b){ return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y; }
+  function updateScoreUI(){ document.getElementById('scoreLabel').textContent = state.score; }
+  function updateLivesUI(){ document.getElementById('livesLabel').textContent = state.lives; }
+  function updateLevelUI(){ document.getElementById('levelLabel').textContent = state.level; }
+
+  function runAction(node){
+    if(!node) return;
+    const p = state.player;
+    switch(node.type){
+      case 'spawn_coin': state.coins.push({x:rand(10,canvas.width-26),y:rand(10,canvas.height-26),w:16,h:16}); break;
+      case 'spawn_coins_multi': for(let i=0;i<(node.value||5);i++) state.coins.push({x:rand(10,canvas.width-26),y:rand(10,canvas.height-26),w:16,h:16}); break;
+      case 'spawn_enemy': state.enemies.push({x:rand(10,canvas.width-30),y:rand(10,canvas.height-30),w:20,h:20,hp:state.enemyHealthDefault,speedMult:node.value||1}); break;
+      case 'spawn_wall': { const v=node.values||{}; const w=v.width||60, h=v.height||18; state.walls.push({x:rand(10,canvas.width-w-10),y:rand(10,canvas.height-h-10),w,h,touched:false,kind:'wall'}); break; }
+      case 'spawn_powerup': state.powerups.push({x:rand(10,canvas.width-26),y:rand(10,canvas.height-26),w:18,h:18}); break;
+      case 'spawn_sprite': {
+        const v = node.values||{};
+        state.sprites.push({x:v.x!==undefined?v.x:300, y:v.y!==undefined?v.y:200, w:v.size||20, h:v.size||20, color:v.color||'#57c2d9', touched:false});
+        break;
+      }
+      case 'remove_sprites': state.sprites=[]; break;
+      case 'spawn_random_pickup': {
+        const dangerChance = (node.value===undefined?20:node.value)/100;
+        const roll = Math.random();
+        if(roll<dangerChance) state.enemies.push({x:rand(10,canvas.width-30),y:rand(10,canvas.height-30),w:20,h:20,hp:state.enemyHealthDefault});
+        else if(roll<dangerChance+0.3) state.powerups.push({x:rand(10,canvas.width-26),y:rand(10,canvas.height-26),w:18,h:18});
+        else state.coins.push({x:rand(10,canvas.width-26),y:rand(10,canvas.height-26),w:16,h:16});
+        break;
+      }
+      case 'countdown_start': state.countdownActive=true; state.countdownValue=(node.value||10); break;
+      case 'clear_powerups': state.powerups=[]; break;
+      case 'spawn_powerup_multi': for(let i=0;i<(node.value||3);i++) state.powerups.push({x:rand(10,canvas.width-26),y:rand(10,canvas.height-26),w:18,h:18}); break;
+      case 'platform': {
+        const v = node.values||{};
+        state.walls.push({x:v.x||100, y:v.y||300, w:v.width||120, h:16, touched:false, kind:'platform'});
+        break;
+      }
+      case 'remove_enemies': state.enemies=[]; break;
+      case 'remove_coins': state.coins=[]; break;
+      case 'remove_platforms': state.walls = state.walls.filter(w=>w.kind!=='platform'); break;
+      case 'remove_walls': state.walls = state.walls.filter(w=>w.kind!=='wall'); break;
+      case 'spawn_obstacle': state.obstacles.push({x:rand(10,canvas.width-30),y:-24,w:24,h:24,speed:node.value||3}); break;
+      case 'spawn_checkpoint': state.checkpoints.push({x:rand(10,canvas.width-24),y:rand(10,canvas.height-24),w:20,h:20}); break;
+      case 'spawn_boss': { const mult=node.value||3; state.enemies.push({x:rand(10,canvas.width-44),y:rand(10,canvas.height-44),w:44,h:44,hp:state.enemyHealthDefault*mult,maxHp:state.enemyHealthDefault*mult,boss:true}); break; }
+      case 'set_enemy_health': state.enemyHealthDefault = node.value||3; break;
+      case 'damage_enemy': {
+        if(state.enemies.length){
+          let nearest=state.enemies[0], best=Infinity;
+          state.enemies.forEach(en=>{
+            const d=Math.hypot((en.x-p.x),(en.y-p.y));
+            if(d<best){ best=d; nearest=en; }
+          });
+          nearest.hp = (nearest.hp===undefined?state.enemyHealthDefault:nearest.hp) - (node.value||1);
+          if(nearest.hp<=0){ state.enemies=state.enemies.filter(e=>e!==nearest); fire('enemy_defeated'); }
+        }
+        break;
+      }
+      case 'clear_all': state.coins=[]; state.enemies=[]; state.walls=[]; state.powerups=[]; break;
+      case 'restart_level': p.x=308;p.y=340;p.vx=0;p.vy=0;p.grounded=true; break;
+      case 'toggle_pause': state.paused=!state.paused; fire(state.paused?'on_pause':'on_resume'); break;
+      case 'set_background_color': state.bgColor = node.value||state.bgColor; break;
+      case 'next_level': state.level+=(node.value||1); updateLevelUI(); fire('level_up'); break;
+
+      case 'random_pos': p.x = rand(0,canvas.width-p.w); p.y = rand(0,canvas.height-p.h); break;
+      case 'set_position': { const v=node.values||{}; p.x=v.x!==undefined?v.x:p.x; p.y=v.y!==undefined?v.y:p.y; break; }
+      case 'move_to_click': if(state.lastClick){ const dx=state.lastClick.x-(p.x+p.w/2), dy=state.lastClick.y-(p.y+p.h/2); const dist=Math.hypot(dx,dy)||1; const step=Math.min(dist,node.value||3); p.x+=dx/dist*step; p.y+=dy/dist*step; } break;
+      case 'wrap_edges': state.wrapEdges=!state.wrapEdges; break;
+      case 'speed_boost': state.boostTimer = Math.max(state.boostTimer,(node.value||3)*60); break;
+      case 'stop_moving': p.vx=0; p.vy=0; break;
+      case 'stop_horizontal': p.vx=0; break;
+      case 'stop_vertical': p.vy=0; break;
+      case 'center_pos': p.x=(canvas.width-p.w)/2; p.y=(canvas.height-p.h)/2; break;
+      case 'move_up': p.y -= (node.value||4); break;
+      case 'move_down': p.y += (node.value||4); break;
+      case 'move_left': p.x -= (node.value||4); p.facing=-1; break;
+      case 'move_right': p.x += (node.value||4); p.facing=1; break;
+      case 'face_left': p.facing=-1; break;
+      case 'face_right': p.facing=1; break;
+      case 'set_lanes': state.lanes=node.value||3; state.currentLane=Math.floor(state.lanes/2); p.x=laneCenterX(state.currentLane); break;
+      case 'lane_left': state.currentLane=Math.max(0,state.currentLane-1); p.x=laneCenterX(state.currentLane); break;
+      case 'lane_right': state.currentLane=Math.min(state.lanes-1,state.currentLane+1); p.x=laneCenterX(state.currentLane); break;
+      case 'center_lane': p.x=laneCenterX(state.currentLane); break;
+      case 'move_toward_enemy': case 'move_away_enemy': {
+        if(state.enemies.length){
+          let nearest=state.enemies[0], best=Infinity;
+          state.enemies.forEach(en=>{ const d=Math.hypot(en.x-p.x,en.y-p.y); if(d<best){best=d;nearest=en;} });
+          const dx=(nearest.x-p.x)||1, dy=(nearest.y-p.y)||1;
+          const dist=Math.hypot(dx,dy)||1;
+          const dir = node.type==='move_toward_enemy' ? 1 : -1;
+          const spd = node.value||3;
+          p.x += (dx/dist)*spd*dir; p.y += (dy/dist)*spd*dir;
+        }
+        break;
+      }
+      case 'flip_vertical': p.flipV=!p.flipV; break;
+      case 'snap_to_grid': { const g=node.value||20; p.x=Math.round(p.x/g)*g; p.y=Math.round(p.y/g)*g; break; }
+      case 'mirror_position': p.x = canvas.width - p.w - p.x; break;
+      case 'wait': break; // handled asynchronously in runActionChain
+
+      case 'change_color': p.colorIdx=(p.colorIdx+1)%PLAYER_COLORS.length; p.color=PLAYER_COLORS[p.colorIdx]; break;
+      case 'custom_color': p.color = node.value || p.color; break;
+      case 'grow': p.w=Math.min(120,p.w+(node.value||6)); p.h=Math.min(120,p.h+(node.value||6)); break;
+      case 'shrink': p.w=Math.max(6,p.w-(node.value||6)); p.h=Math.max(6,p.h-(node.value||6)); break;
+      case 'set_size': p.w=node.value||24; p.h=node.value||24; break;
+      case 'rotate': p.rotation=(p.rotation+(node.value||15))%360; break;
+      case 'hide_p': p.visible=false; break;
+      case 'show_p': p.visible=true; break;
+      case 'flash': p.flashTimer=node.value||10; break;
+      case 'pulse': p.pulseTimer=node.value||20; break;
+      case 'shake_screen': state.shakeTimer=15; state.shakeIntensity=node.value||4; break;
+      case 'trail_on': state.trailOn=true; state.trailMax=node.value||15; break;
+      case 'trail_off': state.trailOn=false; state.trail=[]; break;
+      case 'set_opacity': state.opacity = node.value===undefined?1:node.value; break;
+      case 'rainbow_mode': state.rainbow=!state.rainbow; state.rainbowSpeed=node.value||4; break;
+      case 'cycle_shape': p.shapeIdx=(p.shapeIdx+1)%3; break;
+      case 'outline_toggle': p.outline=!p.outline; p.outlineColor=node.value||'#ffffff'; break;
+      case 'glow_toggle': p.glow=!p.glow; p.glowColor=node.value||p.color; break;
+      case 'set_rotation': p.rotation=node.value||0; break;
+      case 'fade_in': p.targetOpacity=1; p.fadeSpeed=(node.value||8)/100; break;
+      case 'fade_out': p.targetOpacity=0.15; p.fadeSpeed=(node.value||8)/100; break;
+      case 'invisible_blink': state.blinkTimer=node.value||30; break;
+      case 'reset_look': p.w=24;p.h=24;p.color=PLAYER_COLORS[0];p.colorIdx=0;p.rotation=0;p.visible=true;state.opacity=1;p.targetOpacity=1;p.fadeSpeed=0.08;state.rainbow=false;p.shapeIdx=0;p.outline=false;p.glow=false;p.flipV=false; break;
+
+      case 'play_beep': beep(880,node.value||0.12); break;
+      case 'play_low': beep(220,node.value||0.15); break;
+      case 'play_random_note': { const v=node.values||{}; const lo=v.min!==undefined?v.min:200, hi=v.max!==undefined?v.max:800; beep(lo+Math.random()*Math.max(1,hi-lo),0.1); break; }
+      case 'play_victory': { const t=node.value||1; beep(523*t,0.09,0); beep(659*t,0.09,90); beep(784*t,0.16,180); break; }
+      case 'play_hit': beep(120,node.value||0.2); break;
+      case 'play_coin_sound': beep(1046*(node.value||1),0.08); break;
+      case 'play_jump_sound': beep(660*(node.value||1),0.1); break;
+      case 'play_explosion': { const i=node.value||1; beep(90*i,0.3*i); beep(60*i,0.3*i,80); break; }
+      case 'mute_sounds': state.muted=true; break;
+      case 'unmute_sounds': state.muted=false; break;
+      case 'custom_tone': beep(node.value||440, 0.15); break;
+      case 'play_drum': beep(100*(node.value||1),0.08); break;
+      case 'play_melody': { const t=node.value||1; beep(392*t,0.1,0); beep(440*t,0.1,110); beep(494*t,0.1,220); beep(523*t,0.18,330); break; }
+      case 'set_volume': state.volume = Math.max(0,Math.min(1,(node.value===undefined?70:node.value)/100*0.3)); break;
+      case 'play_alarm': { const gap=node.value||140; beep(700,0.12,0); beep(500,0.12,gap); beep(700,0.12,gap*2); break; }
+      case 'play_powerup_sound': { const t=node.value||1; beep(660*t,0.06,0); beep(880*t,0.06,70); beep(1100*t,0.1,140); break; }
+
+      case 'add_point': state.score++; updateScoreUI(); if(state.score>=10) endGame(true); break;
+      case 'add_points': state.score += (node.value||1); updateScoreUI(); if(state.score>=10) endGame(true); break;
+      case 'sub_point': state.score=Math.max(0,state.score-(node.value||1)); updateScoreUI(); break;
+      case 'double_score': state.score=Math.round(state.score*(node.value||2)); updateScoreUI(); if(state.score>=10) endGame(true); break;
+      case 'set_score': state.score = node.value||0; updateScoreUI(); break;
+      case 'reset_score': state.score=0; updateScoreUI(); break;
+      case 'save_record': saveRecordAsync(state.score); break;
+      case 'gain_life': state.lives=Math.min(9,state.lives+1); updateLivesUI(); break;
+      case 'lose_life': state.lives--; updateLivesUI(); if(state.lives<=0){ fire('health_zero'); endGame(false); } break;
+      case 'gain_lives': state.lives=Math.min(9,state.lives+(node.value||2)); updateLivesUI(); break;
+      case 'lose_lives': state.lives-=(node.value||2); updateLivesUI(); if(state.lives<=0){ fire('health_zero'); endGame(false); } break;
+      case 'set_lives': state.lives = node.value||3; updateLivesUI(); break;
+      case 'reset_all': state.score=0; state.lives=3; state.level=1; updateScoreUI(); updateLivesUI(); updateLevelUI(); break;
+      case 'toggle_passive_income': state.passiveIncomeOn=!state.passiveIncomeOn; break;
+      case 'set_income_rate': state.incomeRate=node.value||1; break;
+      case 'convert_lives_to_points': if(state.lives>1){ state.lives--; state.score+=(node.value||5); updateLivesUI(); updateScoreUI(); if(state.score>=10) endGame(true); } break;
+      case 'game_speed': state.gameSpeedMultiplier = node.value||1; break;
+      case 'auto_click': state.autoClickOn=!state.autoClickOn; break;
+      case 'click_power': state.clickPower=node.value||1; break;
+      case 'add_click_points': state.score+=state.clickPower; updateScoreUI(); if(state.score>=10) endGame(true); break;
+      case 'lose_game': endGame(false); break;
+      case 'win_game': endGame(true); break;
+
+      case 'enable_gravity': state.physics.gravityOn=true; break;
+      case 'disable_gravity': state.physics.gravityOn=false; break;
+      case 'anti_gravity': state.physics.antiGravityOn=!state.physics.antiGravityOn; break;
+      case 'gravity_strength': state.physics.gravityStrength=node.value; break;
+      case 'friction': state.physics.friction=node.value; break;
+      case 'ice_floor': state.physics.ice=!state.physics.ice; break;
+      case 'sticky_walls': state.physics.sticky=!state.physics.sticky; break;
+      case 'freeze_physics': state.physics.freezeTimer=(node.value||2)*60; break;
+      case 'max_fall': state.physics.maxFall=node.value; break;
+      case 'double_jump': state.physics.doubleJump=true; state.physics.maxJumps=node.value||2; break;
+      case 'jump':
+        if(p.grounded){ p.vy=-(node.value||12); p.grounded=false; state.physics.jumpsUsed=1; }
+        else if(state.physics.doubleJump && state.physics.jumpsUsed<state.physics.maxJumps){ p.vy=-(node.value||12); state.physics.jumpsUsed++; }
+        break;
+      case 'push_left': p.vx -= (node.value||FORCE)*(state.boostTimer>0?2:1); break;
+      case 'push_right': p.vx += (node.value||FORCE)*(state.boostTimer>0?2:1); break;
+      case 'push_forward': p.vx += p.facing*(node.value||FORCE)*(state.boostTimer>0?2:1); break;
+      case 'bounce': { const f=node.value===undefined?state.physics.bounceFactor:node.value; p.vy = p.vy!==0 ? -p.vy*f : -8*f; break; }
+      case 'set_bounce_factor': state.physics.bounceFactor = node.value===undefined?0.85:node.value; break;
+      case 'shield': state.shielded=!state.shielded; break;
+      case 'invert_controls': state.invertControls=!state.invertControls; break;
+      case 'knockback': {
+        if(state.enemies.length){
+          let nearest=state.enemies[0], best=Infinity;
+          state.enemies.forEach(en=>{
+            const d=Math.hypot((en.x-p.x),(en.y-p.y));
+            if(d<best){ best=d; nearest=en; }
+          });
+          const dx=(nearest.x-p.x)||1, dy=(nearest.y-p.y)||1;
+          const dist=Math.hypot(dx,dy)||1;
+          const kd = node.value||50;
+          nearest.x = Math.max(0,Math.min(canvas.width-nearest.w, nearest.x + dx/dist*kd));
+          nearest.y = Math.max(0,Math.min(canvas.height-nearest.h, nearest.y + dy/dist*kd));
+        }
+        break;
+      }
+    }
+  }
+  const GATE_TYPES = new Set(['if_score_atleast','if_lives_atleast','if_level_atleast','if_grounded','if_moving','if_shielded','if_chance','if_random_pick']);
+  function evaluateGate(node){
+    const p = state.player;
+    switch(node.type){
+      case 'if_score_atleast': return state.score >= (node.value===undefined?5:node.value);
+      case 'if_lives_atleast': return state.lives >= (node.value===undefined?2:node.value);
+      case 'if_level_atleast': return state.level >= (node.value===undefined?2:node.value);
+      case 'if_grounded': return p.grounded;
+      case 'if_moving': return p.vx!==0 || p.vy!==0 || Object.values(state.keys).some(Boolean);
+      case 'if_shielded': return state.shielded;
+      case 'if_chance': return Math.random()*100 < (node.value===undefined?50:node.value);
+      case 'if_random_pick': return Math.random()<0.5;
+      default: return true;
+    }
+  }
+  function runActionChain(node, visited){
+    if(!node || visited.has(node.id)) return;
+    visited.add(node.id);
+    if(node.type==='wait'){
+      setTimeout(()=>{
+        if(!state.running) return;
+        continueChain(node, visited);
+      }, (node.value||1)*1000);
+      return;
+    }
+    if(GATE_TYPES.has(node.type)){
+      if(!evaluateGate(node)) return; // condition false — this branch of the chain stops here
+      continueChain(node, visited);
+      return;
+    }
+    runAction(node);
+    continueChain(node, visited);
+  }
+  function continueChain(node, visited){
+    connectionsArg.filter(c=>c.from===node.id).forEach(c=>{
+      const next = nodeById[c.to];
+      if(next) runActionChain(next, visited);
+    });
+  }
+  let fireDepth = 0;
+  function fire(triggerType){
+    if(fireDepth>30) return; // safety valve: stops runaway loops if a trigger is wired back into its own cause
+    fireDepth++;
+    try{
+      (triggerActions[triggerType]||[]).forEach(n=> runActionChain(n, new Set()));
+    } finally {
+      fireDepth--;
+    }
+  }
+
+  function endGame(won){
+    state.running = false;
+    timerIntervals.forEach(clearInterval);
+    document.removeEventListener('keydown', onKeyDown);
+    document.removeEventListener('keyup', onKeyUp);
+    canvas.removeEventListener('pointerdown', onCanvasDown);
+    canvas.removeEventListener('pointerup', onCanvasUp);
+    if(longPressTimer) clearTimeout(longPressTimer);
+    const endEl = document.getElementById('endMsg');
+    endEl.classList.remove('hidden');
+    document.getElementById('endText').textContent = won ? 'Você venceu! 🏆' : 'Fim de jogo 💥';
+    document.getElementById('endText').style.color = won ? 'var(--win)' : 'var(--danger)';
+    document.getElementById('endScore').textContent = 'Pontos: '+state.score;
+  }
+
+  function normKey(e){ return e.key.length===1 ? e.key.toLowerCase() : e.key; }
+  function pressVirtualKey(key, trig){
+    if(!state.keys[key]){
+      state.keys[key]=true;
+      (triggerActions[trig]||[]).forEach(actionNode=>{
+        if(!actionNode.type.startsWith('move_')) runActionChain(actionNode, new Set());
+      });
+      fire('key_any');
+    }
+  }
+  function releaseVirtualKey(key){ state.keys[key]=false; }
+  function onKeyDown(e){
+    const k = normKey(e);
+    const trig = KEYMAP[k] || (k===' ' ? 'key_space' : null) || (k==='Enter' ? 'key_enter' : null)
+      || (k==='Escape' ? 'key_escape' : null) || (k==='Shift' ? 'key_shift' : null);
+    if(trig){ e.preventDefault(); pressVirtualKey(k, trig); }
+  }
+  function onKeyUp(e){
+    const k = normKey(e);
+    if(KEYMAP[k] || k===' ' || k==='Enter' || k==='Escape' || k==='Shift') releaseVirtualKey(k);
+  }
+  document.addEventListener('keydown', onKeyDown);
+  document.addEventListener('keyup', onKeyUp);
+
+  // on-screen touch controls — same press/release logic as the keyboard, so every device works
+  const touchMap = [
+    ['tUp','ArrowUp','key_up'], ['tDown','ArrowDown','key_down'],
+    ['tLeft','ArrowLeft','key_left'], ['tRight','ArrowRight','key_right'],
+    ['tAction',' ','key_space'],
+  ];
+  const touchHandlers = touchMap.map(([id,vkey,trig])=>{
+    const el = document.getElementById(id);
+    const down = (e)=>{ e.preventDefault(); pressVirtualKey(vkey,trig); };
+    const up = (e)=>{ e.preventDefault(); releaseVirtualKey(vkey); };
+    if(el){
+      el.addEventListener('pointerdown', down);
+      el.addEventListener('pointerup', up);
+      el.addEventListener('pointerleave', up);
+      el.addEventListener('pointercancel', up);
+    }
+    return {el, down, up};
+  });
+  function removeTouchHandlers(){
+    touchHandlers.forEach(({el,down,up})=>{
+      if(!el) return;
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointerleave', up);
+      el.removeEventListener('pointercancel', up);
+    });
+  }
+
+  let longPressTimer = null, lastClickTime = 0, pressDownPos = null;
+  function onCanvasDown(e){
+    const r = canvas.getBoundingClientRect();
+    pressDownPos = {x:e.clientX-r.left, y:e.clientY-r.top};
+    longPressTimer = setTimeout(()=>{ if(state.running && !state.paused) fire('long_press'); }, 600);
+  }
+  function onCanvasUp(e){
+    if(longPressTimer){ clearTimeout(longPressTimer); longPressTimer=null; }
+    if(!pressDownPos) return;
+    const r = canvas.getBoundingClientRect();
+    const pos = {x:e.clientX-r.left, y:e.clientY-r.top};
+    state.lastClick = pos;
+    const dx = pos.x-pressDownPos.x, dy = pos.y-pressDownPos.y;
+    const dist = Math.hypot(dx,dy);
+    if(dist>30){
+      if(Math.abs(dx)>Math.abs(dy)) fire(dx>0?'swipe_right':'swipe_left');
+      else fire(dy>0?'swipe_down':'swipe_up');
+    } else {
+      fire('mouse_click');
+      const p = state.player;
+      if(pos.x>=p.x && pos.x<=p.x+p.w && pos.y>=p.y && pos.y<=p.y+p.h) fire('click_player');
+      const now = Date.now();
+      if(now-lastClickTime < 350) fire('double_tap');
+      lastClickTime = now;
+    }
+    pressDownPos = null;
+  }
+  canvas.addEventListener('pointerdown', onCanvasDown);
+  canvas.addEventListener('pointerup', onCanvasUp);
+
+  fire('start');
+  const timerIntervals = timerNodes.map(t=>
+    setInterval(()=>{ if(state.running && !state.paused) t.actions.forEach(a=>runActionChain(a, new Set())); }, Math.max(200,(t.node.value||2)*1000))
+  );
+  const autoClickInterval = setInterval(()=>{
+    if(state.running && !state.paused && state.autoClickOn){
+      state.score += state.clickPower; updateScoreUI();
+      if(state.score>=10) endGame(true);
+    }
+  }, 1000);
+  timerIntervals.push(autoClickInterval);
+
+  function loop(){
+    if(!state.running) return;
+    if(state.paused){ draw(); requestAnimationFrame(loop); return; }
+    fire('always');
+
+    Object.entries(KEYMAP).forEach(([key,trig])=>{
+      if(state.keys[key]){
+        (triggerActions[trig]||[]).forEach(actionNode=>{
+          const amt = (actionNode.value||4) * (state.boostTimer>0?2:1) * (state.invertControls?-1:1);
+          if(actionNode.type==='move_up') state.player.y -= amt;
+          if(actionNode.type==='move_down') state.player.y += amt;
+          if(actionNode.type==='move_left'){ state.player.x -= amt; state.player.facing=-1; }
+          if(actionNode.type==='move_right'){ state.player.x += amt; state.player.facing=1; }
+        });
+      }
+    });
+
+    const p = state.player;
+    if(state.boostTimer>0) state.boostTimer--;
+    if(state.shakeTimer>0) state.shakeTimer--;
+    if(state.rainbow){ p.hue=(p.hue+state.rainbowSpeed)%360; p.color=`hsl(${p.hue},70%,60%)`; }
+    if(Math.abs(state.opacity-p.targetOpacity)>0.02) state.opacity += (p.targetOpacity-state.opacity)*(p.fadeSpeed||0.08);
+    else state.opacity = p.targetOpacity;
+    if(state.blinkTimer>0){ state.blinkTimer--; p.visible = Math.floor(state.blinkTimer/5)%2===0; if(state.blinkTimer===0) p.visible=true; }
+
+    if(state.physics.freezeTimer>0){
+      state.physics.freezeTimer--;
+    } else {
+      const gDir = state.physics.antiGravityOn ? -1 : 1;
+      if(state.physics.gravityOn) p.vy += state.physics.gravityStrength*gDir;
+      // maxFall only caps speed in the direction gravity is currently pulling,
+      // so it never clips a jump impulse fired in the opposite direction
+      if(gDir>0) p.vy = Math.min(p.vy, state.physics.maxFall);
+      else p.vy = Math.max(p.vy, -state.physics.maxFall);
+      const eff = state.physics.ice ? 0.995 : state.physics.friction;
+      p.vx *= eff;
+      p.vx = Math.max(-15, Math.min(15, p.vx)); // safety cap: keeps ice + repeated pushes from tunneling through walls
+      p.x += p.vx; p.y += p.vy;
+    }
+
+    if(state.wrapEdges){
+      if(p.x>canvas.width) p.x=-p.w;
+      if(p.x+p.w<0) p.x=canvas.width;
+    } else {
+      p.x = Math.max(0, Math.min(canvas.width-p.w, p.x));
+    }
+    if(p.y+p.h >= canvas.height){
+      p.y = canvas.height-p.h;
+      if(p.vy>0 && !p.grounded) fire('hit_ground');
+      p.vy = 0; p.grounded = true; state.physics.jumpsUsed = 0;
+    } else if(p.y<=0){
+      p.y=0; p.vy=Math.max(0,p.vy); p.grounded=false;
+    } else {
+      p.grounded=false;
+    }
+
+    // solid walls & platforms
+    state.walls.forEach(w=>{
+      if(overlap(p,w)){
+        const dx=(p.x+p.w/2)-(w.x+w.w/2), dy=(p.y+p.h/2)-(w.y+w.h/2);
+        const ox=(p.w+w.w)/2-Math.abs(dx), oy=(p.h+w.h)/2-Math.abs(dy);
+        if(ox<oy){ p.x += dx>0?ox:-ox; p.vx=0; if(state.physics.sticky && !p.grounded) p.vy=0; }
+        else{ p.y += dy>0?oy:-oy; p.vy=0; if(dy<0){ p.grounded=true; state.physics.jumpsUsed=0; } }
+        if(!w.touched) fire(w.kind==='platform' ? 'hit_platform' : 'hit_wall');
+        w.touched=true;
+      } else w.touched=false;
+    });
+
+    const edgeL = p.x<=0, edgeR = p.x+p.w>=canvas.width, edgeT = p.y<=0, edgeB = p.y+p.h>=canvas.height;
+    const atEdge = edgeL||edgeR||edgeT||edgeB;
+    if(atEdge && !state.wasAtEdge) fire('hit_edge');
+    state.wasAtEdge = atEdge;
+    if(edgeL && !state.wasAtEdgeL) fire('hit_edge_left'); state.wasAtEdgeL=edgeL;
+    if(edgeR && !state.wasAtEdgeR) fire('hit_edge_right'); state.wasAtEdgeR=edgeR;
+    if(edgeT && !state.wasAtEdgeT) fire('hit_edge_top'); state.wasAtEdgeT=edgeT;
+    if(edgeB && !state.wasAtEdgeB) fire('hit_edge_bottom'); state.wasAtEdgeB=edgeB;
+
+    const fallingNow = !p.grounded && p.vy>2;
+    if(fallingNow && !state.wasFalling) fire('is_falling');
+    state.wasFalling = fallingNow;
+
+    state.enemies.forEach(en=>{
+      const spd = ENEMY_SPEED*2*state.level*state.gameSpeedMultiplier*(en.speedMult||1);
+      en.x = Math.max(0, Math.min(canvas.width-en.w, en.x + (Math.random()-0.5)*spd));
+      en.y = Math.max(0, Math.min(canvas.height-en.h, en.y + (Math.random()-0.5)*spd));
+    });
+
+    for(let i=state.obstacles.length-1;i>=0;i--){
+      const o = state.obstacles[i];
+      o.y += (o.speed||3)*state.gameSpeedMultiplier;
+      if(o.y>canvas.height){ state.obstacles.splice(i,1); continue; }
+      if(overlap(p,o)){ state.obstacles.splice(i,1); if(!state.shielded) fire('hit_obstacle'); }
+    }
+
+    for(let i=state.coins.length-1;i>=0;i--){
+      if(overlap(p, state.coins[i])){ state.coins.splice(i,1); fire('hit_coin'); }
+    }
+    for(let i=state.powerups.length-1;i>=0;i--){
+      if(overlap(p, state.powerups[i])){ state.powerups.splice(i,1); fire('hit_powerup'); }
+    }
+    for(let i=state.checkpoints.length-1;i>=0;i--){
+      if(overlap(p, state.checkpoints[i])){ state.checkpoints.splice(i,1); fire('hit_checkpoint'); }
+    }
+    for(const en of state.enemies){
+      if(overlap(p, en)){ if(!state.shielded) fire('hit_enemy'); break; }
+    }
+    for(let i=state.sprites.length-1;i>=0;i--){
+      if(overlap(p, state.sprites[i]) && !state.sprites[i].touched){ state.sprites[i].touched=true; fire('hit_sprite'); }
+      else if(!overlap(p, state.sprites[i])){ state.sprites[i].touched=false; }
+    }
+
+    nearEnemyTriggers.forEach(nt=>{
+      const dist = nt.node.value||60;
+      const isNear = state.enemies.some(en=> Math.hypot((en.x-p.x),(en.y-p.y)) < dist);
+      if(isNear && !nt.fired){ nt.fired=true; nt.actions.forEach(a=>runActionChain(a, new Set())); }
+      else if(!isNear){ nt.fired=false; }
+    });
+
+    const livesLowNow = state.lives===1;
+    if(livesLowNow && !state.wasLivesLow) fire('lives_low');
+    state.wasLivesLow = livesLowNow;
+
+    if(state.countdownActive){
+      state.countdownValue -= 1/60;
+      if(state.countdownValue<=0){ state.countdownActive=false; state.countdownValue=0; fire('countdown_end'); }
+    }
+
+    if(state.passiveIncomeOn && Math.random()<1/60){ state.score+=state.incomeRate; updateScoreUI(); if(state.score>=10) endGame(true); }
+    if(Math.random()<0.0015) fire('random_event');
+
+    const enemiesEmpty = state.enemies.length===0;
+    if(enemiesEmpty && !state.prevEnemiesEmpty) fire('no_enemies_left');
+    state.prevEnemiesEmpty = enemiesEmpty;
+    const coinsEmpty = state.coins.length===0;
+    if(coinsEmpty && !state.prevCoinsEmpty) fire('no_coins_left');
+    state.prevCoinsEmpty = coinsEmpty;
+
+    scoreTriggers.forEach(st=>{
+      const reached = state.score >= st.node.value;
+      if(reached && !st.fired){ st.fired=true; st.actions.forEach(a=>runActionChain(a, new Set())); }
+      else if(!reached){ st.fired=false; }
+    });
+
+    if(p.flashTimer>0) p.flashTimer--;
+    if(p.pulseTimer>0) p.pulseTimer--;
+    if(state.trailOn){
+      state.trail.push({x:p.x+p.w/2,y:p.y+p.h/2});
+      if(state.trail.length>state.trailMax) state.trail.shift();
+    }
+
+    draw();
+    if(state.running) requestAnimationFrame(loop);
+  }
+
+  function draw(){
+    ctx.save();
+    if(state.shakeTimer>0) ctx.translate(rand(-state.shakeIntensity,state.shakeIntensity), rand(-state.shakeIntensity,state.shakeIntensity));
+
+    ctx.fillStyle = state.bgColor;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.strokeStyle = 'rgba(217,154,91,0.08)';
+    for(let x=0;x<canvas.width;x+=20){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke(); }
+    for(let y=0;y<canvas.height;y+=20){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke(); }
+
+    state.walls.forEach(w=>{
+      if(w.kind==='platform'){
+        ctx.fillStyle = '#a97d4a';
+        ctx.fillRect(w.x,w.y,w.w,w.h);
+        ctx.fillStyle = '#c99a63';
+        ctx.fillRect(w.x,w.y,w.w,4);
+      } else {
+        ctx.fillStyle = '#8a6d3b';
+        ctx.fillRect(w.x,w.y,w.w,w.h);
+      }
+    });
+
+    ctx.fillStyle = '#f2c14e';
+    state.coins.forEach(c=>{
+      ctx.beginPath();
+      ctx.arc(c.x+c.w/2, c.y+c.h/2, c.w/2, 0, Math.PI*2);
+      ctx.fill();
+    });
+
+    ctx.fillStyle = '#c77dff';
+    state.powerups.forEach(pu=>{
+      ctx.save();
+      ctx.translate(pu.x+pu.w/2, pu.y+pu.h/2);
+      ctx.rotate(Math.PI/4);
+      ctx.fillRect(-pu.w/2,-pu.h/2,pu.w,pu.h);
+      ctx.restore();
+    });
+
+    ctx.fillStyle = '#7be08a';
+    state.checkpoints.forEach(cp=>{
+      ctx.beginPath();
+      ctx.moveTo(cp.x+cp.w/2, cp.y);
+      ctx.lineTo(cp.x+cp.w, cp.y+cp.h/2);
+      ctx.lineTo(cp.x+cp.w/2, cp.y+cp.h);
+      ctx.lineTo(cp.x, cp.y+cp.h/2);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    ctx.fillStyle = '#e0645c';
+    state.obstacles.forEach(o=> ctx.fillRect(o.x, o.y, o.w, o.h));
+
+    state.sprites.forEach(s=>{ ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.w, s.h); });
+
+    state.enemies.forEach(en=>{
+      ctx.fillStyle = en.boss ? '#8a2f2f' : '#e0645c';
+      ctx.fillRect(en.x, en.y, en.w, en.h);
+      if(en.hp!==undefined && en.hp>0){
+        const maxHp = en.maxHp || (en.boss ? state.enemyHealthDefault*3 : state.enemyHealthDefault);
+        ctx.fillStyle = '#222';
+        ctx.fillRect(en.x, en.y-6, en.w, 4);
+        ctx.fillStyle = '#7be08a';
+        ctx.fillRect(en.x, en.y-6, en.w*Math.max(0,Math.min(1,en.hp/maxHp)), 4);
+      }
+    });
+
+    const p = state.player;
+    if(state.trailOn){
+      state.trail.forEach((t,i)=>{
+        ctx.globalAlpha = (i/state.trail.length)*0.4;
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(t.x,t.y,p.w/3,0,Math.PI*2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    if(p.visible){
+      const scale = p.pulseTimer>0 ? 1+0.3*Math.sin((20-p.pulseTimer)/20*Math.PI) : 1;
+      ctx.globalAlpha = state.opacity;
+      ctx.save();
+      ctx.translate(p.x+p.w/2, p.y+p.h/2);
+      ctx.rotate(p.rotation*Math.PI/180);
+      ctx.scale(p.facing*scale, (p.flipV?-1:1)*scale);
+      if(state.shielded){
+        ctx.strokeStyle = '#57c2d9';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0,0,Math.max(p.w,p.h)*0.75,0,Math.PI*2);
+        ctx.stroke();
+      }
+      if(p.glow){ ctx.shadowColor = p.glowColor||p.color; ctx.shadowBlur = 18; }
+      ctx.fillStyle = p.flashTimer>0 ? '#ffffff' : p.color;
+      if(p.shapeIdx===1){
+        ctx.beginPath(); ctx.arc(0,0,p.w/2,0,Math.PI*2); ctx.fill();
+      } else if(p.shapeIdx===2){
+        ctx.beginPath(); ctx.moveTo(0,-p.h/2); ctx.lineTo(p.w/2,p.h/2); ctx.lineTo(-p.w/2,p.h/2); ctx.closePath(); ctx.fill();
+      } else {
+        ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      }
+      ctx.shadowBlur = 0;
+      if(p.outline){
+        ctx.strokeStyle = p.outlineColor||'#ffffff'; ctx.lineWidth = 2;
+        ctx.strokeRect(-p.w/2,-p.h/2,p.w,p.h);
+      }
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+
+    if(state.paused){
+      ctx.fillStyle = 'rgba(4,10,7,0.6)';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle = '#eae7da';
+      ctx.font = 'bold 22px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('PAUSADO', canvas.width/2, canvas.height/2);
+      ctx.textAlign = 'left';
+    }
+  }
+
+  requestAnimationFrame(loop);
+
+  document.getElementById('btnPlayAgain').onclick = ()=>{
+    timerIntervals.forEach(clearInterval);
+    document.removeEventListener('keydown', onKeyDown);
+    document.removeEventListener('keyup', onKeyUp);
+    canvas.removeEventListener('pointerdown', onCanvasDown);
+    canvas.removeEventListener('pointerup', onCanvasUp);
+    if(longPressTimer) clearTimeout(longPressTimer);
+    playGame(nodesArg, connectionsArg, title);
+  };
+  document.getElementById('btnClosePlay').onclick = ()=>{
+    state.running = false;
+    timerIntervals.forEach(clearInterval);
+    document.removeEventListener('keydown', onKeyDown);
+    document.removeEventListener('keyup', onKeyUp);
+    canvas.removeEventListener('pointerdown', onCanvasDown);
+    canvas.removeEventListener('pointerup', onCanvasUp);
+    if(longPressTimer) clearTimeout(longPressTimer);
+    document.getElementById('playOverlay').classList.add('hidden');
+  };
+}
+
+
+</script>
+</body>
+</html>
